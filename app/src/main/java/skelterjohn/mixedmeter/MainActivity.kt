@@ -10,8 +10,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
@@ -21,6 +23,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -29,6 +32,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -251,128 +255,144 @@ class MainActivity : ComponentActivity() {
                             },
                         contentAlignment = Alignment.Center
                     ) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
+                        Row(
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .fillMaxWidth()
+                                .padding(top = 16.dp)
+                                .horizontalScroll(rememberScrollState()),
+                            verticalAlignment = Alignment.Bottom
                         ) {
-                            Row(
-                                modifier = Modifier
-                                    .align(Alignment.Start)
-                                    .padding(start = 16.dp, bottom = 32.dp)
-                                    .horizontalScroll(rememberScrollState()),
-                                verticalAlignment = Alignment.Bottom
-                            ) {
-                                timeSignatures.forEachIndexed { index, ts ->
-                                    if (index > 0) {
-                                        IconButton(
-                                            onClick = {
+                            Spacer(modifier = Modifier.width(16.dp))
+                            timeSignatures.forEachIndexed { index, ts ->
+                                if (index > 0) {
+                                    Box(
+                                        modifier = Modifier
+                                            .padding(horizontal = 2.dp, vertical = 32.dp)
+                                            .shadow(2.dp, RoundedCornerShape(5))
+                                            .size(20.dp)
+                                            .background(Color.Gray, RoundedCornerShape(5))
+                                            .border(1.dp, Color.Black, RoundedCornerShape(5))
+                                            .clickable {
                                                 timeSignatures = timeSignatures.toMutableList().apply {
                                                     add(index, TimeSignature(4, 4))
                                                 }
                                             },
-                                            modifier = Modifier.padding(bottom = 24.dp) // Align with selector center
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Add,
-                                                contentDescription = "Insert Time Signature",
-                                                tint = Color.Black
-                                            )
-                                        }
-                                    }
-
-                                    var showMenu by remember { mutableStateOf(false) }
-                                    Column(
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.spacedBy(0.dp)
+                                        contentAlignment = Alignment.Center
                                     ) {
-                                        IconButton(onClick = {
-                                            timeSignatures = timeSignatures.toMutableList().apply {
-                                                removeAt(index)
-                                            }
-                                        }) {
-                                            Icon(
-                                                imageVector = Icons.Default.Delete,
-                                                contentDescription = "Remove Time Signature",
-                                                tint = Color.Black
-                                            )
+                                        Icon(
+                                            imageVector = Icons.Default.Add,
+                                            contentDescription = "Insert Time Signature",
+                                            tint = Color.Black,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
+                                }
+
+                                var showMenu by remember { mutableStateOf(false) }
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(0.dp)
+                                ) {
+                                    IconButton(onClick = {
+                                        timeSignatures = timeSignatures.toMutableList().apply {
+                                            removeAt(index)
                                         }
-                                        Box {
-                                            TimeSignatureSelector(
-                                                numerator = ts.numerator,
-                                                onNumeratorChange = { newNum ->
-                                                    timeSignatures = timeSignatures.toMutableList().apply {
-                                                        this[index] = this[index].copy(numerator = newNum)
-                                                    }
-                                                },
-                                                denominator = ts.denominator,
-                                                onDenominatorChange = { newDen ->
-                                                    timeSignatures = timeSignatures.toMutableList().apply {
-                                                        this[index] = this[index].copy(denominator = newDen)
-                                                    }
-                                                },
-                                                modifier = Modifier
-                                                    .padding(horizontal = 8.dp)
-                                                    .combinedClickable(
-                                                        onClick = { /* normal clicks handled by children */ },
-                                                        onLongClick = { showMenu = true }
-                                                    )
-                                            )
-                                            DropdownMenu(
-                                                expanded = showMenu,
-                                                onDismissRequest = { showMenu = false }
-                                            ) {
-                                                if (index > 0) {
-                                                    DropdownMenuItem(
-                                                        text = { Text("Move Left") },
-                                                        onClick = {
-                                                            timeSignatures = timeSignatures.toMutableList().apply {
-                                                                val item = removeAt(index)
-                                                                add(index - 1, item)
-                                                            }
-                                                            showMenu = false
-                                                        }
-                                                    )
+                                    }) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Remove Time Signature",
+                                            tint = Color.Black
+                                        )
+                                    }
+                                    Box {
+                                        TimeSignatureSelector(
+                                            numerator = ts.numerator,
+                                            onNumeratorChange = { newNum ->
+                                                timeSignatures = timeSignatures.toMutableList().apply {
+                                                    this[index] = this[index].copy(numerator = newNum)
                                                 }
-                                                if (index < timeSignatures.size - 1) {
-                                                    DropdownMenuItem(
-                                                        text = { Text("Move Right") },
-                                                        onClick = {
-                                                            timeSignatures = timeSignatures.toMutableList().apply {
-                                                                val item = removeAt(index)
-                                                                add(index + 1, item)
-                                                            }
-                                                            showMenu = false
-                                                        }
-                                                    )
+                                            },
+                                            denominator = ts.denominator,
+                                            onDenominatorChange = { newDen ->
+                                                timeSignatures = timeSignatures.toMutableList().apply {
+                                                    this[index] = this[index].copy(denominator = newDen)
                                                 }
+                                            },
+                                            modifier = Modifier
+                                                .padding(horizontal = 0.dp)
+                                                .combinedClickable(
+                                                    onClick = { /* normal clicks handled by children */ },
+                                                    onLongClick = { showMenu = true }
+                                                )
+                                        )
+                                        DropdownMenu(
+                                            expanded = showMenu,
+                                            onDismissRequest = { showMenu = false }
+                                        ) {
+                                            if (index > 0) {
                                                 DropdownMenuItem(
-                                                    text = { Text("Remove") },
+                                                    text = { Text("Move Left") },
                                                     onClick = {
                                                         timeSignatures = timeSignatures.toMutableList().apply {
-                                                            removeAt(index)
+                                                            val item = removeAt(index)
+                                                            add(index - 1, item)
                                                         }
                                                         showMenu = false
                                                     }
                                                 )
                                             }
+                                            if (index < timeSignatures.size - 1) {
+                                                DropdownMenuItem(
+                                                    text = { Text("Move Right") },
+                                                    onClick = {
+                                                        timeSignatures = timeSignatures.toMutableList().apply {
+                                                            val item = removeAt(index)
+                                                            add(index + 1, item)
+                                                        }
+                                                        showMenu = false
+                                                    }
+                                                )
+                                            }
+                                            DropdownMenuItem(
+                                                text = { Text("Remove") },
+                                                onClick = {
+                                                    timeSignatures = timeSignatures.toMutableList().apply {
+                                                        removeAt(index)
+                                                    }
+                                                    showMenu = false
+                                                }
+                                            )
                                         }
                                     }
                                 }
-                                IconButton(
-                                    onClick = {
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .padding(start = 4.dp, end = 32.dp, bottom = 32.dp)
+                                    .shadow(2.dp, RoundedCornerShape(5))
+                                    .size(20.dp)
+                                    .background(Color.Gray, RoundedCornerShape(5))
+                                    .border(1.dp, Color.Black, RoundedCornerShape(5))
+                                    .clickable {
                                         timeSignatures = timeSignatures + TimeSignature(4, 4)
                                     },
-                                    modifier = Modifier
-                                        .padding(end = 32.dp, bottom = 24.dp) // Align with selector center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Add,
-                                        contentDescription = "Add Time Signature",
-                                        tint = Color.Black
-                                    )
-                                }
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = "Add Time Signature",
+                                    tint = Color.Black,
+                                    modifier = Modifier.size(14.dp)
+                                )
                             }
+                        }
+
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.padding(bottom = 16.dp)
@@ -486,7 +506,7 @@ fun TimeSignatureSelector(
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             modifier = Modifier
                 .width(IntrinsicSize.Min)
-                .widthIn(min = 64.dp),
+                .widthIn(min = 40.dp),
             decorationBox = { innerTextField ->
                 Box(contentAlignment = Alignment.Center) {
                     if (numerator == 0) {
@@ -514,7 +534,7 @@ fun TimeSignatureSelector(
                 color = Color.Black,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
-                    .widthIn(min = 64.dp)
+                    .widthIn(min = 40.dp)
                     .clickable { expanded = true }
             )
             DropdownMenu(
