@@ -26,6 +26,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -93,6 +95,7 @@ class MainActivity : ComponentActivity() {
                                 modifier = Modifier.padding(bottom = 16.dp)
                             )
                             CircleDisplay(
+                                bpm = bpm,
                                 modifier = Modifier.onGloballyPositioned { coords ->
                                     boxLayoutCoordinates?.let { boxCoords ->
                                         // Calculate center relative to the parent Box for coordinate consistency
@@ -112,7 +115,14 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun CircleDisplay(modifier: Modifier = Modifier) {
+fun CircleDisplay(bpm: Float, modifier: Modifier = Modifier) {
+    val minBpm = 30f
+    val maxBpm = 300f
+    val startAngle = 120f // 30 degrees clockwise of straight down (90 + 30)
+    val sweepAngle = 300f // Full rotation minus the 60 degree gap at the bottom
+    val ratio = ((bpm - minBpm) / (maxBpm - minBpm)).coerceIn(0f, 1f)
+    val currentAngle = startAngle + ratio * sweepAngle
+
     Box(
         modifier = modifier.size(200.dp),
         contentAlignment = Alignment.Center
@@ -125,14 +135,27 @@ fun CircleDisplay(modifier: Modifier = Modifier) {
                 .padding(2.dp)
                 .border(width = 8.dp, color = Color.Black, shape = CircleShape)
         )
-        // Center-to-top thick white line
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            drawLine(
-                color = Color.White,
-                start = center,
-                end = Offset(x = size.width / 2, y = 0f),
-                strokeWidth = 8.dp.toPx()
+        // Indicator line
+        Canvas(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+            // Faint track for the dial
+            drawArc(
+                color = Color.White.copy(alpha = 0.1f),
+                startAngle = startAngle,
+                sweepAngle = sweepAngle,
+                useCenter = false,
+                style = Stroke(width = 2.dp.toPx())
             )
+
+            // Rotate the line to the current angle. 
+            // The line is drawn pointing straight up (270 deg), so we rotate by (currentAngle - 270).
+            rotate(degrees = currentAngle - 270f) {
+                drawLine(
+                    color = Color.White,
+                    start = center,
+                    end = Offset(x = size.width / 2, y = 0f),
+                    strokeWidth = 8.dp.toPx()
+                )
+            }
         }
     }
 }
@@ -141,6 +164,6 @@ fun CircleDisplay(modifier: Modifier = Modifier) {
 @Composable
 fun GreetingPreview() {
     MixedMeterTheme {
-        CircleDisplay()
+        CircleDisplay(bpm = 120f)
     }
 }
