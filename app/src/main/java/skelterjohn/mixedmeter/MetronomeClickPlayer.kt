@@ -1,110 +1,83 @@
 package skelterjohn.mixedmeter
 
+import android.content.Context
 import android.media.AudioAttributes
-import android.media.AudioFormat
 import android.media.AudioManager
-import android.media.AudioTrack
-import android.os.Build
-import kotlin.math.PI
-import kotlin.math.sin
+import android.media.SoundPool
+import android.media.ToneGenerator
+import android.util.Log
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Short pre-buffered PCM click via alternating [AudioTrack]s so rapid beats avoid stop/start jitter.
+ * One-shot clicks via [SoundPool], with [ToneGenerator] fallback if loading fails.
  */
 class MetronomeClickPlayer(
+    context: Context,
     private val useBeepTone: Boolean,
 ) {
-    private val sampleRate = 44_100
-    private val clickSamples: ShortArray = generateClickSamples(useBeepTone)
-    private val tracks: Array<AudioTrack> = arrayOf(
-        createAudioTrack(clickSamples.size * 2),
-        createAudioTrack(clickSamples.size * 2),
-    )
-    private var nextTrackIndex = 0
+    private val soundPool: SoundPool = SoundPool.Builder()
+        .setMaxStreams(4)
+        .setAudioAttributes(
+            AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build(),
+        )
+        .build()
+
+    private val soundId: Int
+    private val isReady = AtomicBoolean(false)
+    private val loadedLatch = CountDownLatch(1)
+    private val useToneFallback: Boolean
+    private val toneGenerator: ToneGenerator?
 
     init {
-        tracks.forEach { it.write(clickSamples, 0, clickSamples.size) }
+        val wavFile = MetronomeClickWav.cacheFile(context, useBeepTone)
+        soundPool.setOnLoadCompleteListener { _, sampleId, status ->
+            if (sampleId > 0 && status == 0) {
+                isReady.set(true)
+                loadedLatch.countDown()
+            }
+        }
+        soundId = soundPool.load(wavFile.absolutePath, 1)
+        if (soundId == 0) {
+            Log.e(TAG, "SoundPool failed to load click from ${wavFile.absolutePath}, using ToneGenerator")
+            useToneFallback = true
+            toneGenerator = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
+            loadedLatch.countDown()
+        } else {
+            useToneFallback = false
+            toneGenerator = null
+        }
     }
 
-    /** Prime both tracks so the first audible [play] starts sooner. */
-    fun warmUp() {
-        tracks.forEach { track ->
-            if (track.state != AudioTrack.STATE_INITIALIZED) return@forEach
-            track.setStereoVolume(0f, 0f)
-            track.setPlaybackHeadPosition(0)
-            track.play()
-            track.stop()
-            track.setPlaybackHeadPosition(0)
-            track.setStereoVolume(1f, 1f)
-        }
+    /** Block until the click sample is ready (call from the metronome thread, not the UI thread). */
+    fun ensureReady() {
+        loadedLatch.await(3, TimeUnit.SECONDS)
     }
 
     fun play() {
-        val track = tracks[nextTrackIndex]
-        nextTrackIndex = 1 - nextTrackIndex
-        if (track.state != AudioTrack.STATE_INITIALIZED) return
-        if (track.playState == AudioTrack.PLAYSTATE_PLAYING) {
-            track.pause()
+        if (useToneFallback) {
+            val toneType = if (useBeepTone) {
+                ToneGenerator.TONE_PROP_BEEP
+            } else {
+                ToneGenerator.TONE_CDMA_PIP
+            }
+            toneGenerator?.startTone(toneType, 30)
+            return
         }
-        track.setPlaybackHeadPosition(0)
-        track.play()
+        if (!isReady.get() || soundId == 0) return
+        soundPool.play(soundId, 1f, 1f, 1, 0, 1f)
     }
 
     fun release() {
-        tracks.forEach { track ->
-            if (track.state == AudioTrack.STATE_INITIALIZED) {
-                track.stop()
-                track.release()
-            }
-        }
+        toneGenerator?.release()
+        soundPool.release()
     }
 
-    private fun createAudioTrack(bufferBytes: Int): AudioTrack {
-        val minBufferSize = AudioTrack.getMinBufferSize(
-            sampleRate,
-            AudioFormat.CHANNEL_OUT_MONO,
-            AudioFormat.ENCODING_PCM_16BIT,
-        )
-        val attributes = AudioAttributes.Builder()
-            .setUsage(AudioAttributes.USAGE_MEDIA)
-            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-            .setFlags(AudioAttributes.FLAG_LOW_LATENCY)
-            .build()
-        val format = AudioFormat.Builder()
-            .setSampleRate(sampleRate)
-            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-            .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-            .build()
-        val bufferSize = bufferBytes.coerceAtLeast(minBufferSize)
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            AudioTrack.Builder()
-                .setAudioAttributes(attributes)
-                .setAudioFormat(format)
-                .setBufferSizeInBytes(bufferSize)
-                .setTransferMode(AudioTrack.MODE_STATIC)
-                .setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
-                .build()
-        } else {
-            @Suppress("DEPRECATION")
-            AudioTrack(
-                attributes,
-                format,
-                bufferSize,
-                AudioTrack.MODE_STATIC,
-                AudioManager.AUDIO_SESSION_ID_GENERATE,
-            )
-        }
-    }
-
-    private fun generateClickSamples(beep: Boolean): ShortArray {
-        val durationMs = 6
-        val sampleCount = sampleRate * durationMs / 1000
-        val frequencyHz = if (beep) 880.0 else 1_200.0
-        val amplitude = Short.MAX_VALUE * 0.45
-        return ShortArray(sampleCount) { i ->
-            val t = i.toDouble() / sampleRate
-            val envelope = 1.0 - (i.toDouble() / sampleCount)
-            (sin(2.0 * PI * frequencyHz * t) * envelope * amplitude).toInt().toShort()
-        }
+    private companion object {
+        private const val TAG = "MetronomeClickPlayer"
     }
 }

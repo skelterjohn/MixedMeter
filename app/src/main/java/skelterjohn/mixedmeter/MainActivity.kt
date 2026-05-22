@@ -251,14 +251,15 @@ class MainActivity : ComponentActivity() {
                     if (isOn) {
                         Log.d("MixedMeter", "Starting metronome with tone: $toneSetting")
                         cycleAnchorNanos.set(0L)
-                        val clickPlayer = MetronomeClickPlayer(useBeepTone = toneSetting == "beep")
-                        clickPlayer.warmUp()
+                        val clickPlayer = MetronomeClickPlayer(
+                            context = context,
+                            useBeepTone = toneSetting == "beep",
+                        )
                         val metronomeEngine = MetronomeEngine(
                             clickPlayer = clickPlayer,
-                            getSchedule = { metronomeClickSchedule },
                             onCycleAnchor = { cycleAnchorNanos.set(it) },
                         )
-                        metronomeEngine.start()
+                        metronomeEngine.start(metronomeClickSchedule)
                         try {
                             while (isActive) {
                                 withFrameNanos {

@@ -2,14 +2,12 @@ package skelterjohn.mixedmeter
 
 import android.os.Process
 import java.util.concurrent.locks.LockSupport
-import kotlin.math.min
 
 /**
- * Dedicated timing thread using [System.nanoTime] deadlines (not coroutine [delay]).
+ * Dedicated timing thread using [System.nanoTime] on a steady grid (no shortening after late clicks).
  */
 class MetronomeEngine(
     private val clickPlayer: MetronomeClickPlayer,
-    private val getSchedule: () -> MetronomeClickSchedule,
     private val onCycleAnchor: (Long) -> Unit,
 ) {
     @Volatile
@@ -18,10 +16,10 @@ class MetronomeEngine(
     private var thread: Thread? = null
 
     @Synchronized
-    fun start() {
+    fun start(schedule: MetronomeClickSchedule) {
         if (running) return
         running = true
-        thread = Thread(::runLoop, "MixedMeterMetronome").apply {
+        thread = Thread({ runLoop(schedule) }, "MixedMeterMetronome").apply {
             priority = Thread.MAX_PRIORITY
             start()
         }
@@ -34,44 +32,74 @@ class MetronomeEngine(
         thread = null
     }
 
-    private fun runLoop() {
+    private fun runLoop(schedule: MetronomeClickSchedule) {
         Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
-        var anchorNanos = 0L
-        var clickIndex = 0L
+        clickPlayer.ensureReady()
 
-        while (running) {
-            val schedule = getSchedule()
-
-            if (anchorNanos == 0L) {
-                anchorNanos = System.nanoTime()
-                onCycleAnchor(anchorNanos)
-                clickPlayer.play()
-                clickIndex = 1L
-                continue
-            }
-
-            val deadlineNanos = nextDeadlineNanos(anchorNanos, clickIndex, schedule)
-            val intervalNanos = intervalBeforeDeadline(anchorNanos, clickIndex, schedule)
-            waitUntilPlayTime(deadlineNanos, intervalNanos)
-            if (!running) break
-            clickPlayer.play()
-            clickIndex++
+        val useBoxSchedule = schedule.totalCycleNanos > 0L && schedule.clickOffsetsNanos.isNotEmpty()
+        if (useBoxSchedule) {
+            runBoxScheduleLoop(schedule)
+        } else {
+            runSimpleBpmLoop(schedule.beatPeriodNanos)
         }
     }
 
-    private fun waitUntilPlayTime(deadlineNanos: Long, intervalNanos: Long) {
-        val latencyNanos = min(
-            CLICK_OUTPUT_LATENCY_NANOS,
-            intervalNanos / 6L,
-        ).coerceAtLeast(0L)
-        val playAtNanos = deadlineNanos - latencyNanos
-        while (running && System.nanoTime() < playAtNanos) {
-            val remainingNanos = playAtNanos - System.nanoTime()
+    /** No time signatures: fixed interval grid at 60/bpm. */
+    private fun runSimpleBpmLoop(periodNanos: Long) {
+        val anchorNanos = System.nanoTime()
+        onCycleAnchor(anchorNanos)
+        clickPlayer.play()
+
+        var nextDeadlineNanos = anchorNanos + periodNanos
+        while (running) {
+            nextDeadlineNanos = skipLateSlots(nextDeadlineNanos, periodNanos)
+            waitUntilDeadline(nextDeadlineNanos)
+            if (!running) break
+            clickPlayer.play()
+            nextDeadlineNanos += periodNanos
+        }
+    }
+
+    private fun runBoxScheduleLoop(schedule: MetronomeClickSchedule) {
+        val anchorNanos = System.nanoTime()
+        onCycleAnchor(anchorNanos)
+        clickPlayer.play()
+
+        var nextClickIndex = 1L
+        var nextDeadlineNanos = deadlineForClickIndex(anchorNanos, nextClickIndex, schedule)
+        while (running) {
+            var now = System.nanoTime()
+            while (running && now >= nextDeadlineNanos) {
+                nextClickIndex++
+                nextDeadlineNanos = deadlineForClickIndex(anchorNanos, nextClickIndex, schedule)
+                now = System.nanoTime()
+            }
+            waitUntilDeadline(nextDeadlineNanos)
+            if (!running) break
+            clickPlayer.play()
+            nextClickIndex++
+            nextDeadlineNanos = deadlineForClickIndex(anchorNanos, nextClickIndex, schedule)
+        }
+    }
+
+    private fun skipLateSlots(deadlineNanos: Long, periodNanos: Long): Long {
+        var nextDeadline = deadlineNanos
+        var now = System.nanoTime()
+        while (running && now >= nextDeadline) {
+            nextDeadline += periodNanos
+            now = System.nanoTime()
+        }
+        return nextDeadline
+    }
+
+    private fun waitUntilDeadline(deadlineNanos: Long) {
+        while (running && System.nanoTime() < deadlineNanos) {
+            val remainingNanos = deadlineNanos - System.nanoTime()
             when {
-                remainingNanos > 5_000_000L -> {
-                    Thread.sleep((remainingNanos / 1_000_000L - 3L).coerceAtLeast(1L))
+                remainingNanos > 8_000_000L -> {
+                    Thread.sleep((remainingNanos / 1_000_000L - 4L).coerceAtLeast(1L))
                 }
-                remainingNanos > 300_000L -> {
+                remainingNanos > 0L -> {
                     LockSupport.parkNanos(remainingNanos)
                 }
             }
@@ -79,39 +107,14 @@ class MetronomeEngine(
     }
 }
 
-private const val CLICK_OUTPUT_LATENCY_NANOS = 8_000_000L
-
-private fun nextDeadlineNanos(
+private fun deadlineForClickIndex(
     anchorNanos: Long,
     clickIndex: Long,
     schedule: MetronomeClickSchedule,
 ): Long {
     val offsets = schedule.clickOffsetsNanos
-    if (schedule.totalCycleNanos > 0L && offsets.isNotEmpty()) {
-        val boundaryCount = offsets.size
-        val cycle = clickIndex / boundaryCount
-        val boundaryIndex = (clickIndex % boundaryCount).toInt()
-        return anchorNanos + cycle * schedule.totalCycleNanos + offsets[boundaryIndex]
-    }
-    return anchorNanos + clickIndex * schedule.beatPeriodNanos
-}
-
-private fun intervalBeforeDeadline(
-    anchorNanos: Long,
-    clickIndex: Long,
-    schedule: MetronomeClickSchedule,
-): Long {
-    val offsets = schedule.clickOffsetsNanos
-    if (schedule.totalCycleNanos > 0L && offsets.isNotEmpty()) {
-        val boundaryCount = offsets.size
-        val index = (clickIndex % boundaryCount).toInt()
-        val nextClickIndex = clickIndex + 1
-        val cycle = clickIndex / boundaryCount
-        val nextCycle = nextClickIndex / boundaryCount
-        val nextBoundaryIndex = (nextClickIndex % boundaryCount).toInt()
-        val current = anchorNanos + cycle * schedule.totalCycleNanos + offsets[index]
-        val next = anchorNanos + nextCycle * schedule.totalCycleNanos + offsets[nextBoundaryIndex]
-        return (next - current).coerceAtLeast(1L)
-    }
-    return schedule.beatPeriodNanos
+    val boundaryCount = offsets.size
+    val cycle = clickIndex / boundaryCount
+    val boundaryIndex = (clickIndex % boundaryCount).toInt()
+    return anchorNanos + cycle * schedule.totalCycleNanos + offsets[boundaryIndex]
 }
