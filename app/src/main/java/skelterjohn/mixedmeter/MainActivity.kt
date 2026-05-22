@@ -13,20 +13,28 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ClearAll
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -80,8 +88,9 @@ val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "se
 private val TEMPO_UNITS_KEY = floatPreferencesKey("tempo_units")
 val TONE_KEY = stringPreferencesKey("tone_setting")
 private val SELECTED_NOTE_KEY = stringPreferencesKey("selected_note")
-private val NUMERATOR_KEY = intPreferencesKey("numerator")
-private val DENOMINATOR_KEY = intPreferencesKey("denominator")
+private val TIME_SIGNATURES_KEY = stringPreferencesKey("time_signatures")
+
+data class TimeSignature(val numerator: Int, val denominator: Int)
 
 private fun calculateBpm(tempoUnits: Float): Float {
     val interval = (tempoUnits / 10f).toInt()
@@ -95,6 +104,7 @@ private fun calculateBpm(tempoUnits: Float): Float {
 }
 
 class MainActivity : ComponentActivity() {
+    @OptIn(ExperimentalFoundationApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -106,8 +116,8 @@ class MainActivity : ComponentActivity() {
                 var boxLayoutCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
                 var isOn by remember { mutableStateOf(false) }
                 var beatProgress by remember { mutableFloatStateOf(0f) }
-                var isLoaded by remember { mutableStateOf(false) }
                 var currentBeat by remember { mutableIntStateOf(1) }
+                var isLoaded by remember { mutableStateOf(false) }
 
                 val bpm by remember {
                     derivedStateOf { calculateBpm(tempoUnits) }
@@ -117,8 +127,7 @@ class MainActivity : ComponentActivity() {
                 val noteOptions = remember { listOf("♪", "♪.", "♩", "♩.", "𝅗𝅥", "𝅗𝅥.", "𝅝") }
                 var selectedNote by remember { mutableStateOf("♩") }
 
-                var numerator by remember { mutableIntStateOf(4) }
-                var denominator by remember { mutableIntStateOf(4) }
+                var timeSignatures by remember { mutableStateOf(listOf<TimeSignature>()) }
                 
                 var committedBpm by remember { mutableFloatStateOf(bpm) }
                 var pulsingBpm by remember { mutableFloatStateOf(bpm) }
@@ -134,11 +143,13 @@ class MainActivity : ComponentActivity() {
                     preferences[SELECTED_NOTE_KEY]?.let { savedNote ->
                         selectedNote = savedNote
                     }
-                    preferences[NUMERATOR_KEY]?.let { savedNumerator ->
-                        numerator = savedNumerator
-                    }
-                    preferences[DENOMINATOR_KEY]?.let { savedDenominator ->
-                        denominator = savedDenominator
+                    preferences[TIME_SIGNATURES_KEY]?.let { saved ->
+                        if (saved.isNotEmpty()) {
+                            timeSignatures = saved.split(";").filter { it.contains("/") }.map {
+                                val parts = it.split("/")
+                                TimeSignature(parts[0].toIntOrNull() ?: 4, parts[1].toIntOrNull() ?: 4)
+                            }
+                        }
                     }
                     isLoaded = true
                 }
@@ -159,18 +170,10 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                LaunchedEffect(numerator) {
+                LaunchedEffect(timeSignatures) {
                     if (isLoaded) {
                         context.dataStore.edit { settings ->
-                            settings[NUMERATOR_KEY] = numerator
-                        }
-                    }
-                }
-
-                LaunchedEffect(denominator) {
-                    if (isLoaded) {
-                        context.dataStore.edit { settings ->
-                            settings[DENOMINATOR_KEY] = denominator
+                            settings[TIME_SIGNATURES_KEY] = timeSignatures.joinToString(";") { "${it.numerator}/${it.denominator}" }
                         }
                     }
                 }
@@ -180,7 +183,7 @@ class MainActivity : ComponentActivity() {
                         .map { preferences -> preferences[TONE_KEY] ?: "bip" }
                 }.collectAsState(initial = "bip")
 
-                LaunchedEffect(isOn, toneSetting, numerator) {
+                LaunchedEffect(isOn, toneSetting, timeSignatures, bpm) {
                     if (isOn) {
                         Log.d("MixedMeter", "Starting metronome with tone: $toneSetting")
                         val toneGenerator = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
@@ -189,41 +192,53 @@ class MainActivity : ComponentActivity() {
                         } else {
                             ToneGenerator.TONE_CDMA_PIP
                         }
-                        val accentedToneType = ToneGenerator.TONE_PROP_BEEP2
+                        val accentedToneType = if (toneSetting == "beep") {
+                            ToneGenerator.TONE_DTMF_7
+                        } else {
+                            ToneGenerator.TONE_PROP_BEEP
+                        }
 
                         try {
                             var beatStartTimeNanos = -1L
                             var beatInMeasure = 0
-                            val effectiveNumerator = if (numerator > 0) numerator else 4
+                            var measureIndex = 0
 
                             while (true) {
                                 withFrameNanos { frameTimeNanos ->
                                     var isNewBeat = false
                                     if (beatStartTimeNanos == -1L) {
                                         beatStartTimeNanos = frameTimeNanos
-                                        pulsingBpm = committedBpm
                                         isNewBeat = true
                                         beatInMeasure = 0
+                                        measureIndex = 0
                                     }
 
-                                    var currentDurationNanos = (60_000_000_000f / pulsingBpm).toLong()
+                                    var currentDurationNanos = (60_000_000_000f / bpm).toLong()
                                     var elapsed = frameTimeNanos - beatStartTimeNanos
 
                                     while (elapsed >= currentDurationNanos) {
                                         beatStartTimeNanos += currentDurationNanos
-                                        pulsingBpm = committedBpm
-                                        currentDurationNanos = (60_000_000_000f / pulsingBpm).toLong()
+                                        currentDurationNanos = (60_000_000_000f / bpm).toLong()
                                         elapsed = frameTimeNanos - beatStartTimeNanos
                                         isNewBeat = true
-                                        beatInMeasure = (beatInMeasure + 1) % effectiveNumerator
+                                        
+                                        beatInMeasure++
+                                        val list = timeSignatures.ifEmpty { listOf(TimeSignature(4, 4)) }
+                                        val ts = list[measureIndex % list.size]
+                                        val num = if (ts.numerator > 0) ts.numerator else 4
+                                        
+                                        if (beatInMeasure >= num) {
+                                            beatInMeasure = 0
+                                            measureIndex++
+                                        }
                                     }
 
                                     if (isNewBeat) {
                                         currentBeat = beatInMeasure + 1
                                         if (beatInMeasure == 0) {
-                                            toneGenerator.startTone(accentedToneType, 10)
+                                            toneGenerator.startTone(accentedToneType, 30)
                                         } else {
-                                            toneGenerator.startTone(mainToneType, 10)
+                                            toneGenerator.startTone(mainToneType, 30)
                                         }
                                     }
 
@@ -274,16 +289,119 @@ class MainActivity : ComponentActivity() {
                         contentAlignment = Alignment.Center
                     ) {
                         Column(
+                            modifier = Modifier.fillMaxWidth(),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
-                            TimeSignatureSelector(
-                                numerator = numerator,
-                                onNumeratorChange = { numerator = it },
-                                denominator = denominator,
-                                onDenominatorChange = { denominator = it },
-                                modifier = Modifier.padding(bottom = 32.dp)
-                            )
+                            Row(
+                                modifier = Modifier
+                                    .align(Alignment.Start)
+                                    .padding(bottom = 32.dp)
+                                    .horizontalScroll(rememberScrollState()),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                IconButton(
+                                    onClick = { timeSignatures = listOf(TimeSignature(4, 4)) },
+                                    modifier = Modifier.padding(start = 16.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = "Clear All",
+                                        tint = Color.Black
+                                    )
+                                }
+                                timeSignatures.forEachIndexed { index, ts ->
+                                    if (index > 0) {
+                                        IconButton(onClick = {
+                                            timeSignatures = timeSignatures.toMutableList().apply {
+                                                add(index, TimeSignature(4, 4))
+                                            }
+                                        }) {
+                                            Icon(
+                                                imageVector = Icons.Default.Add,
+                                                contentDescription = "Insert Time Signature",
+                                                tint = Color.Black
+                                            )
+                                        }
+                                    }
+                                    
+                                    var showMenu by remember { mutableStateOf(false) }
+                                    Box {
+                                        TimeSignatureSelector(
+                                            numerator = ts.numerator,
+                                            onNumeratorChange = { newNum ->
+                                                timeSignatures = timeSignatures.toMutableList().apply {
+                                                    this[index] = this[index].copy(numerator = newNum)
+                                                }
+                                            },
+                                            denominator = ts.denominator,
+                                            onDenominatorChange = { newDen ->
+                                                timeSignatures = timeSignatures.toMutableList().apply {
+                                                    this[index] = this[index].copy(denominator = newDen)
+                                                }
+                                            },
+                                            modifier = Modifier
+                                                .padding(horizontal = 8.dp)
+                                                .combinedClickable(
+                                                    onClick = { /* normal clicks handled by children */ },
+                                                    onLongClick = { showMenu = true }
+                                                )
+                                        )
+                                        DropdownMenu(
+                                            expanded = showMenu,
+                                            onDismissRequest = { showMenu = false }
+                                        ) {
+                                            if (index > 0) {
+                                                DropdownMenuItem(
+                                                    text = { Text("Move Left") },
+                                                    onClick = {
+                                                        timeSignatures = timeSignatures.toMutableList().apply {
+                                                            val item = removeAt(index)
+                                                            add(index - 1, item)
+                                                        }
+                                                        showMenu = false
+                                                    }
+                                                )
+                                            }
+                                            if (index < timeSignatures.size - 1) {
+                                                DropdownMenuItem(
+                                                    text = { Text("Move Right") },
+                                                    onClick = {
+                                                        timeSignatures = timeSignatures.toMutableList().apply {
+                                                            val item = removeAt(index)
+                                                            add(index + 1, item)
+                                                        }
+                                                        showMenu = false
+                                                    }
+                                                )
+                                            }
+                                            if (timeSignatures.size > 1) {
+                                                DropdownMenuItem(
+                                                    text = { Text("Remove") },
+                                                    onClick = {
+                                                        timeSignatures = timeSignatures.toMutableList().apply {
+                                                            removeAt(index)
+                                                        }
+                                                        showMenu = false
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                                IconButton(
+                                    onClick = {
+                                        timeSignatures = timeSignatures + TimeSignature(4, 4)
+                                    },
+                                    modifier = Modifier.padding(end = 32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = "Add Time Signature",
+                                        tint = Color.Black
+                                    )
+                                }
+                            }
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.padding(bottom = 16.dp)
@@ -318,11 +436,19 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                             }
+                            if (isOn) {
+                                Text(
+                                    text = currentBeat.toString(),
+                                    color = Color.Black,
+                                    fontSize = 64.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(bottom = 8.dp)
+                                )
+                            }
                             CircleDisplay(
                                 bpm = bpm,
                                 isOn = isOn,
                                 beatProgress = beatProgress,
-                                currentBeat = currentBeat,
                                 onToggle = {
                                     if (!isOn) {
                                         committedBpm = bpm
@@ -452,7 +578,6 @@ fun CircleDisplay(
     bpm: Float,
     isOn: Boolean,
     beatProgress: Float,
-    currentBeat: Int,
     onToggle: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -478,7 +603,7 @@ fun CircleDisplay(
                 .padding(2.dp)
                 .border(width = 8.dp, color = Color.Black, shape = CircleShape)
         )
-        // Indicator line and tempo animation
+        // Indicator line and tempo background
         Canvas(modifier = Modifier.fillMaxSize()) {
             val innerRadius = size.width / 2 - 12.dp.toPx()
             
@@ -522,21 +647,12 @@ fun CircleDisplay(
             // Indicator line
             rotate(degrees = currentAngle - 270f) {
                 drawLine(
-                    color = Color.White,
+                    color = if (isOn) Color.White else Color.White.copy(alpha = 0.5f),
                     start = center,
                     end = Offset(x = size.width / 2, y = -2.dp.toPx()),
                     strokeWidth = 8.dp.toPx()
                 )
             }
-        }
-
-        if (isOn) {
-            Text(
-                text = currentBeat.toString(),
-                color = Color.Black,
-                fontSize = 64.sp,
-                fontWeight = FontWeight.Bold
-            )
         }
     }
 }
@@ -545,6 +661,6 @@ fun CircleDisplay(
 @Composable
 fun GreetingPreview() {
     MixedMeterTheme {
-        CircleDisplay(bpm = 120f, isOn = false, beatProgress = 0f, currentBeat = 1, onToggle = {})
+        CircleDisplay(bpm = 120f, isOn = false, beatProgress = 0f, onToggle = {})
     }
 }
