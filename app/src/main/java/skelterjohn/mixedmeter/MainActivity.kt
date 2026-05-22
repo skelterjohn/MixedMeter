@@ -5,6 +5,7 @@ import android.content.Intent
 import android.media.AudioManager
 import android.media.ToneGenerator
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -123,6 +124,7 @@ class MainActivity : ComponentActivity() {
 
                 LaunchedEffect(isOn, toneSetting) {
                     if (isOn) {
+                        Log.d("MixedMeter", "Starting metronome with tone: $toneSetting")
                         val toneGenerator = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
                         val toneType = if (toneSetting == "beep") {
                             ToneGenerator.TONE_PROP_BEEP
@@ -241,11 +243,13 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)
                                 .padding(16.dp)
+                                .size(100.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Settings,
                                 contentDescription = "Settings",
-                                tint = Color.Black
+                                tint = Color.Black,
+                                modifier = Modifier.fillMaxSize()
                             )
                         }
                     }
