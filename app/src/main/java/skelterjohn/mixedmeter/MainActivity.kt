@@ -1,5 +1,6 @@
 package skelterjohn.mixedmeter
 
+import android.content.Context
 import android.media.AudioManager
 import android.media.ToneGenerator
 import android.os.Bundle
@@ -40,12 +41,33 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.flow.first
 import skelterjohn.mixedmeter.ui.theme.MixedMeterTheme
 import kotlin.math.sqrt
+
+private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
+private val TEMPO_UNITS_KEY = floatPreferencesKey("tempo_units")
+
+private fun calculateBpm(tempoUnits: Float): Float {
+    val interval = (tempoUnits / 10f).toInt()
+    val remainder = tempoUnits % 10f
+    val baseBpm = 30 + interval * 5
+    return if (remainder < 6f) {
+        baseBpm.toFloat()
+    } else {
+        baseBpm + (remainder - 5f)
+    }
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -53,28 +75,39 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             MixedMeterTheme {
+                val context = LocalContext.current
                 var tempoUnits by remember { mutableFloatStateOf(180f) } // 120 BPM = 180 units
                 var circleCenter by remember { mutableStateOf(Offset.Zero) }
                 var boxLayoutCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
                 var isOn by remember { mutableStateOf(false) }
                 var isDragging by remember { mutableStateOf(false) }
                 var beatProgress by remember { mutableFloatStateOf(0f) }
+                var isLoaded by remember { mutableStateOf(false) }
 
                 val bpm by remember {
-                    derivedStateOf {
-                        val interval = (tempoUnits / 10f).toInt()
-                        val remainder = tempoUnits % 10f
-                        val baseBpm = 30 + interval * 5
-                        if (remainder < 6f) {
-                            baseBpm.toFloat()
-                        } else {
-                            baseBpm + (remainder - 5f)
-                        }
-                    }
+                    derivedStateOf { calculateBpm(tempoUnits) }
                 }
                 
                 var committedBpm by remember { mutableFloatStateOf(bpm) }
                 var pulsingBpm by remember { mutableFloatStateOf(bpm) }
+
+                LaunchedEffect(Unit) {
+                    context.dataStore.data.first()[TEMPO_UNITS_KEY]?.let { savedUnits ->
+                        tempoUnits = savedUnits
+                        val loadedBpm = calculateBpm(savedUnits)
+                        committedBpm = loadedBpm
+                        pulsingBpm = loadedBpm
+                    }
+                    isLoaded = true
+                }
+
+                LaunchedEffect(committedBpm) {
+                    if (isLoaded) {
+                        context.dataStore.edit { settings ->
+                            settings[TEMPO_UNITS_KEY] = tempoUnits
+                        }
+                    }
+                }
 
                 LaunchedEffect(isOn) {
                     if (isOn) {
@@ -147,10 +180,6 @@ class MainActivity : ComponentActivity() {
                                         val sensitivity = 150f / distance
                                         val delta = dragAmount.x - dragAmount.y
                                         tempoUnits = (tempoUnits + delta * sensitivity).coerceIn(0f, 380f)
-                                        
-                                        if (!isOn) {
-                                            committedBpm = bpm
-                                        }
                                     }
                                 )
                             },
