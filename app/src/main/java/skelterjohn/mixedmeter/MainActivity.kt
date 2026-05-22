@@ -33,7 +33,6 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ClearAll
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.DropdownMenu
@@ -48,7 +47,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -76,7 +74,6 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
-import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.first
@@ -129,7 +126,6 @@ class MainActivity : ComponentActivity() {
                 var timeSignatures by remember { mutableStateOf(listOf<TimeSignature>()) }
                 
                 var committedBpm by remember { mutableFloatStateOf(bpm) }
-                var pulsingBpm by remember { mutableFloatStateOf(bpm) }
 
                 LaunchedEffect(Unit) {
                     val preferences = context.dataStore.data.first()
@@ -137,7 +133,6 @@ class MainActivity : ComponentActivity() {
                         tempoUnits = savedUnits
                         val loadedBpm = calculateBpm(savedUnits)
                         committedBpm = loadedBpm
-                        pulsingBpm = loadedBpm
                     }
                     preferences[SELECTED_NOTE_KEY]?.let { savedNote ->
                         selectedNote = savedNote
@@ -264,27 +259,20 @@ class MainActivity : ComponentActivity() {
                             Row(
                                 modifier = Modifier
                                     .align(Alignment.Start)
-                                    .padding(bottom = 32.dp)
+                                    .padding(start = 16.dp, bottom = 32.dp)
                                     .horizontalScroll(rememberScrollState()),
-                                verticalAlignment = Alignment.CenterVertically
+                                verticalAlignment = Alignment.Bottom
                             ) {
-                                IconButton(
-                                    onClick = { timeSignatures = listOf(TimeSignature(4, 4)) },
-                                    modifier = Modifier.padding(start = 16.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Delete,
-                                        contentDescription = "Clear All",
-                                        tint = Color.Black
-                                    )
-                                }
                                 timeSignatures.forEachIndexed { index, ts ->
                                     if (index > 0) {
-                                        IconButton(onClick = {
-                                            timeSignatures = timeSignatures.toMutableList().apply {
-                                                add(index, TimeSignature(4, 4))
-                                            }
-                                        }) {
+                                        IconButton(
+                                            onClick = {
+                                                timeSignatures = timeSignatures.toMutableList().apply {
+                                                    add(index, TimeSignature(4, 4))
+                                                }
+                                            },
+                                            modifier = Modifier.padding(bottom = 24.dp) // Align with selector center
+                                        ) {
                                             Icon(
                                                 imageVector = Icons.Default.Add,
                                                 contentDescription = "Insert Time Signature",
@@ -292,58 +280,72 @@ class MainActivity : ComponentActivity() {
                                             )
                                         }
                                     }
-                                    
+
                                     var showMenu by remember { mutableStateOf(false) }
-                                    Box {
-                                        TimeSignatureSelector(
-                                            numerator = ts.numerator,
-                                            onNumeratorChange = { newNum ->
-                                                timeSignatures = timeSignatures.toMutableList().apply {
-                                                    this[index] = this[index].copy(numerator = newNum)
-                                                }
-                                            },
-                                            denominator = ts.denominator,
-                                            onDenominatorChange = { newDen ->
-                                                timeSignatures = timeSignatures.toMutableList().apply {
-                                                    this[index] = this[index].copy(denominator = newDen)
-                                                }
-                                            },
-                                            modifier = Modifier
-                                                .padding(horizontal = 8.dp)
-                                                .combinedClickable(
-                                                    onClick = { /* normal clicks handled by children */ },
-                                                    onLongClick = { showMenu = true }
-                                                )
-                                        )
-                                        DropdownMenu(
-                                            expanded = showMenu,
-                                            onDismissRequest = { showMenu = false }
-                                        ) {
-                                            if (index > 0) {
-                                                DropdownMenuItem(
-                                                    text = { Text("Move Left") },
-                                                    onClick = {
-                                                        timeSignatures = timeSignatures.toMutableList().apply {
-                                                            val item = removeAt(index)
-                                                            add(index - 1, item)
-                                                        }
-                                                        showMenu = false
-                                                    }
-                                                )
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(0.dp)
+                                    ) {
+                                        IconButton(onClick = {
+                                            timeSignatures = timeSignatures.toMutableList().apply {
+                                                removeAt(index)
                                             }
-                                            if (index < timeSignatures.size - 1) {
-                                                DropdownMenuItem(
-                                                    text = { Text("Move Right") },
-                                                    onClick = {
-                                                        timeSignatures = timeSignatures.toMutableList().apply {
-                                                            val item = removeAt(index)
-                                                            add(index + 1, item)
-                                                        }
-                                                        showMenu = false
+                                        }) {
+                                            Icon(
+                                                imageVector = Icons.Default.Delete,
+                                                contentDescription = "Remove Time Signature",
+                                                tint = Color.Black
+                                            )
+                                        }
+                                        Box {
+                                            TimeSignatureSelector(
+                                                numerator = ts.numerator,
+                                                onNumeratorChange = { newNum ->
+                                                    timeSignatures = timeSignatures.toMutableList().apply {
+                                                        this[index] = this[index].copy(numerator = newNum)
                                                     }
-                                                )
-                                            }
-                                            if (timeSignatures.size > 1) {
+                                                },
+                                                denominator = ts.denominator,
+                                                onDenominatorChange = { newDen ->
+                                                    timeSignatures = timeSignatures.toMutableList().apply {
+                                                        this[index] = this[index].copy(denominator = newDen)
+                                                    }
+                                                },
+                                                modifier = Modifier
+                                                    .padding(horizontal = 8.dp)
+                                                    .combinedClickable(
+                                                        onClick = { /* normal clicks handled by children */ },
+                                                        onLongClick = { showMenu = true }
+                                                    )
+                                            )
+                                            DropdownMenu(
+                                                expanded = showMenu,
+                                                onDismissRequest = { showMenu = false }
+                                            ) {
+                                                if (index > 0) {
+                                                    DropdownMenuItem(
+                                                        text = { Text("Move Left") },
+                                                        onClick = {
+                                                            timeSignatures = timeSignatures.toMutableList().apply {
+                                                                val item = removeAt(index)
+                                                                add(index - 1, item)
+                                                            }
+                                                            showMenu = false
+                                                        }
+                                                    )
+                                                }
+                                                if (index < timeSignatures.size - 1) {
+                                                    DropdownMenuItem(
+                                                        text = { Text("Move Right") },
+                                                        onClick = {
+                                                            timeSignatures = timeSignatures.toMutableList().apply {
+                                                                val item = removeAt(index)
+                                                                add(index + 1, item)
+                                                            }
+                                                            showMenu = false
+                                                        }
+                                                    )
+                                                }
                                                 DropdownMenuItem(
                                                     text = { Text("Remove") },
                                                     onClick = {
@@ -361,7 +363,8 @@ class MainActivity : ComponentActivity() {
                                     onClick = {
                                         timeSignatures = timeSignatures + TimeSignature(4, 4)
                                     },
-                                    modifier = Modifier.padding(end = 32.dp)
+                                    modifier = Modifier
+                                        .padding(end = 32.dp, bottom = 24.dp) // Align with selector center
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Add,
