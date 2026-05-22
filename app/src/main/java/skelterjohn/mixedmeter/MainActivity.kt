@@ -1,6 +1,7 @@
 package skelterjohn.mixedmeter
 
 import android.content.Context
+import android.content.Intent
 import android.media.AudioManager
 import android.media.ToneGenerator
 import android.os.Bundle
@@ -8,7 +9,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -19,10 +19,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -50,13 +55,16 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import skelterjohn.mixedmeter.ui.theme.MixedMeterTheme
 import kotlin.math.sqrt
 
-private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
+val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 private val TEMPO_UNITS_KEY = floatPreferencesKey("tempo_units")
+val TONE_KEY = stringPreferencesKey("tone_setting")
 
 private fun calculateBpm(tempoUnits: Float): Float {
     val interval = (tempoUnits / 10f).toInt()
@@ -80,7 +88,6 @@ class MainActivity : ComponentActivity() {
                 var circleCenter by remember { mutableStateOf(Offset.Zero) }
                 var boxLayoutCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
                 var isOn by remember { mutableStateOf(false) }
-                var isDragging by remember { mutableStateOf(false) }
                 var beatProgress by remember { mutableFloatStateOf(0f) }
                 var isLoaded by remember { mutableStateOf(false) }
 
@@ -109,9 +116,19 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                LaunchedEffect(isOn) {
+                val toneSetting by remember {
+                    context.dataStore.data
+                        .map { preferences -> preferences[TONE_KEY] ?: "bip" }
+                }.collectAsState(initial = "bip")
+
+                LaunchedEffect(isOn, toneSetting) {
                     if (isOn) {
                         val toneGenerator = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
+                        val toneType = if (toneSetting == "beep") {
+                            ToneGenerator.TONE_PROP_BEEP
+                        } else {
+                            ToneGenerator.TONE_CDMA_PIP
+                        }
                         try {
                             var beatStartTimeNanos = -1L
                             while (true) {
@@ -135,7 +152,7 @@ class MainActivity : ComponentActivity() {
                                     }
 
                                     if (isNewBeat) {
-                                        toneGenerator.startTone(ToneGenerator.TONE_CDMA_PIP, 10)
+                                        toneGenerator.startTone(toneType, 10)
                                     }
 
                                     beatProgress = (elapsed.toFloat() / currentDurationNanos).coerceIn(0f, 1f)
@@ -160,13 +177,11 @@ class MainActivity : ComponentActivity() {
                             .onGloballyPositioned { boxLayoutCoordinates = it }
                             .pointerInput(Unit) {
                                 detectDragGestures(
-                                    onDragStart = { isDragging = true },
+                                    onDragStart = { },
                                     onDragEnd = {
-                                        isDragging = false
                                         committedBpm = bpm
                                     },
                                     onDragCancel = {
-                                        isDragging = false
                                         committedBpm = bpm
                                     },
                                     onDrag = { change, dragAmount ->
@@ -216,6 +231,21 @@ class MainActivity : ComponentActivity() {
                                         )
                                     }
                                 }
+                            )
+                        }
+
+                        IconButton(
+                            onClick = {
+                                context.startActivity(Intent(context, SettingsActivity::class.java))
+                            },
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(16.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Settings",
+                                tint = Color.Black
                             )
                         }
                     }
