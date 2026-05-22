@@ -248,9 +248,13 @@ class MainActivity : ComponentActivity() {
 
                 val activeBoxProgress by remember {
                     derivedStateOf {
+                        if (!isOn) return@derivedStateOf 0f
+                        val (_, totalDuration) = beatBoxSchedule
+                        if (totalDuration <= 0f) {
+                            return@derivedStateOf playbackPosition.coerceIn(0f, 1f)
+                        }
                         val box = activeBeatBox ?: return@derivedStateOf 0f
                         if (box.duration <= 0f) return@derivedStateOf 0f
-                        val (_, totalDuration) = beatBoxSchedule
                         val position = playbackPosition % totalDuration
                         ((position - box.startTime) / box.duration).coerceIn(0f, 1f)
                     }
@@ -268,16 +272,17 @@ class MainActivity : ComponentActivity() {
 
                         try {
                             var cycleStartTimeNanos = -1L
+                            var beatStartTimeNanos = -1L
                             var lastClickedBeat: Pair<Int, Int>? = null
 
                             while (true) {
                                 withFrameNanos { frameTimeNanos ->
-                                    if (cycleStartTimeNanos < 0L) {
-                                        cycleStartTimeNanos = frameTimeNanos
-                                    }
-
                                     val (boxes, totalCycleDuration) = beatBoxSchedule
                                     if (totalCycleDuration > 0f) {
+                                        if (cycleStartTimeNanos < 0L) {
+                                            cycleStartTimeNanos = frameTimeNanos
+                                        }
+
                                         val cycleElapsedSeconds =
                                             (frameTimeNanos - cycleStartTimeNanos) / 1_000_000_000f
                                         playbackPosition =
@@ -294,6 +299,23 @@ class MainActivity : ComponentActivity() {
                                                 lastClickedBeat = beatKey
                                             }
                                         }
+                                    } else {
+                                        if (beatStartTimeNanos < 0L) {
+                                            beatStartTimeNanos = frameTimeNanos
+                                            toneGenerator.startTone(toneType, 30)
+                                        }
+
+                                        val beatDurationNanos = (60_000_000_000f / bpm).toLong()
+                                        var elapsed = frameTimeNanos - beatStartTimeNanos
+
+                                        while (elapsed >= beatDurationNanos) {
+                                            beatStartTimeNanos += beatDurationNanos
+                                            elapsed = frameTimeNanos - beatStartTimeNanos
+                                            toneGenerator.startTone(toneType, 30)
+                                        }
+
+                                        playbackPosition =
+                                            (elapsed.toFloat() / beatDurationNanos).coerceIn(0f, 1f)
                                     }
                                 }
                             }
