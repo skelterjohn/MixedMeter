@@ -6,7 +6,6 @@ import android.media.AudioManager
 import android.media.ToneGenerator
 import android.os.Bundle
 import android.util.Log
-import java.util.Locale
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -17,13 +16,16 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -52,6 +54,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -361,182 +364,166 @@ class MainActivity : ComponentActivity() {
                             },
                         contentAlignment = Alignment.Center
                     ) {
-                        Row(
+                        Column(modifier = Modifier.fillMaxSize()) {
+                        val timeSignaturesScrollState = rememberScrollState()
+                        Column(
                             modifier = Modifier
-                                .align(Alignment.TopStart)
+                                .weight(1f)
                                 .fillMaxWidth()
-                                .padding(top = 16.dp)
-                                .horizontalScroll(rememberScrollState()),
-                            verticalAlignment = Alignment.Top
+                                .padding(top = 16.dp),
                         ) {
-                            Spacer(modifier = Modifier.width(16.dp))
-                            timeSignatures.forEachIndexed { index, ts ->
-                                if (index > 0) {
-                                    val canAdd = timeSignatures.size < 4
+                            MeterScrollRow(
+                                scrollState = timeSignaturesScrollState,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                MeterRowStartSpacer()
+                                timeSignatures.forEachIndexed { index, _ ->
+                                    if (index > 0) {
+                                        MeterInsertGapSpacer()
+                                    }
                                     Box(
-                                        modifier = Modifier
-                                            .padding(start = 2.dp, end = 2.dp, top = 80.dp)
-                                            .alpha(if (canAdd) 1f else 0.3f)
-                                            .shadow(2.dp, RoundedCornerShape(5))
-                                            .size(20.dp)
-                                            .background(Color.Gray, RoundedCornerShape(5))
-                                            .border(1.dp, Color.Black, RoundedCornerShape(5))
-                                            .clickable(enabled = canAdd) {
-                                                timeSignatures = timeSignatures.toMutableList().apply {
-                                                    add(index, TimeSignature(4, 4))
-                                                }
-                                            },
-                                        contentAlignment = Alignment.Center
+                                        modifier = Modifier.widthIn(min = MeterTimeSignatureSlotMinWidth),
+                                        contentAlignment = Alignment.Center,
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Add,
-                                            contentDescription = "Insert Time Signature",
-                                            tint = Color.Black,
-                                            modifier = Modifier.size(14.dp)
-                                        )
+                                        IconButton(onClick = {
+                                            timeSignatures = timeSignatures.toMutableList().apply {
+                                                removeAt(index)
+                                            }
+                                        }) {
+                                            Icon(
+                                                imageVector = Icons.Default.Delete,
+                                                contentDescription = "Remove Time Signature",
+                                                tint = Color.Black,
+                                            )
+                                        }
                                     }
                                 }
+                                MeterRowEndSpacer(canAdd = timeSignatures.size < 4)
+                            }
 
-                                var showMenu by remember { mutableStateOf(false) }
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(0.dp)
-                                ) {
-                                    IconButton(onClick = {
-                                        timeSignatures = timeSignatures.toMutableList().apply {
-                                            removeAt(index)
+                            MeterScrollRow(
+                                scrollState = timeSignaturesScrollState,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                MeterRowStartSpacer()
+                                timeSignatures.forEachIndexed { index, ts ->
+                                    if (index > 0) {
+                                        Box(
+                                            modifier = Modifier.width(MeterInsertSlotWidth),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            InsertTimeSignatureButton(
+                                                enabled = timeSignatures.size < 4,
+                                                onClick = {
+                                                    timeSignatures = timeSignatures.toMutableList().apply {
+                                                        add(index, TimeSignature(4, 4))
+                                                    }
+                                                },
+                                                contentDescription = "Insert Time Signature",
+                                            )
                                         }
-                                    }) {
-                                        Icon(
-                                            imageVector = Icons.Default.Delete,
-                                            contentDescription = "Remove Time Signature",
-                                            tint = Color.Black
-                                        )
                                     }
-                                    Box {
-                                        TimeSignatureSelector(
-                                            numerator = ts.numerator,
+
+                                    key(index) {
+                                        TimeSignatureSelectorCell(
+                                            index = index,
+                                            timeSignature = ts,
+                                            timeSignatureCount = timeSignatures.size,
                                             onNumeratorChange = { newNum ->
                                                 timeSignatures = timeSignatures.toMutableList().apply {
                                                     this[index] = this[index].copy(numerator = newNum)
                                                 }
                                             },
-                                            denominator = ts.denominator,
                                             onDenominatorChange = { newDen ->
                                                 timeSignatures = timeSignatures.toMutableList().apply {
                                                     this[index] = this[index].copy(denominator = newDen)
                                                 }
                                             },
-                                            modifier = Modifier
-                                                .padding(horizontal = 0.dp)
-                                                .combinedClickable(
-                                                    onClick = { /* normal clicks handled by children */ },
-                                                    onLongClick = { showMenu = true }
-                                                )
+                                            onRemove = {
+                                                timeSignatures = timeSignatures.toMutableList().apply {
+                                                    removeAt(index)
+                                                }
+                                            },
+                                            onMoveLeft = {
+                                                timeSignatures = timeSignatures.toMutableList().apply {
+                                                    val item = removeAt(index)
+                                                    add(index - 1, item)
+                                                }
+                                            },
+                                            onMoveRight = {
+                                                timeSignatures = timeSignatures.toMutableList().apply {
+                                                    val item = removeAt(index)
+                                                    add(index + 1, item)
+                                                }
+                                            },
                                         )
-                                        DropdownMenu(
-                                            expanded = showMenu,
-                                            onDismissRequest = { showMenu = false }
-                                        ) {
-                                            if (index > 0) {
-                                                DropdownMenuItem(
-                                                    text = { Text("Move Left") },
-                                                    onClick = {
-                                                        timeSignatures = timeSignatures.toMutableList().apply {
-                                                            val item = removeAt(index)
-                                                            add(index - 1, item)
-                                                        }
-                                                        showMenu = false
-                                                    }
-                                                )
-                                            }
-                                            if (index < timeSignatures.size - 1) {
-                                                DropdownMenuItem(
-                                                    text = { Text("Move Right") },
-                                                    onClick = {
-                                                        timeSignatures = timeSignatures.toMutableList().apply {
-                                                            val item = removeAt(index)
-                                                            add(index + 1, item)
-                                                        }
-                                                        showMenu = false
-                                                    }
-                                                )
-                                            }
-                                            DropdownMenuItem(
-                                                text = { Text("Remove") },
-                                                onClick = {
-                                                    timeSignatures = timeSignatures.toMutableList().apply {
-                                                        removeAt(index)
-                                                    }
-                                                    showMenu = false
-                                                }
-                                            )
-                                        }
                                     }
-                                    Column(
-                                        modifier = Modifier.padding(top = 8.dp),
-                                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                                        horizontalAlignment = Alignment.CenterHorizontally
+                                }
+                                if (timeSignatures.size < 4) {
+                                    Box(
+                                        modifier = Modifier
+                                            .width(MeterTrailingAddSlotWidth)
+                                            .padding(start = 4.dp, end = 32.dp),
+                                        contentAlignment = Alignment.Center,
                                     ) {
-                                        ts.numerator.let { num ->
-                                            repeat(num) { i ->
-                                                val startTime = beatBoxSchedule.first
-                                                    .firstOrNull { it.sectionIndex == index && it.beatIndex == i }
-                                                    ?.startTime ?: 0f
-                                                val isActive = activeBeatBox?.sectionIndex == index &&
-                                                    activeBeatBox?.beatIndex == i
-                                                Row(
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                                ) {
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .size(16.dp)
-                                                            .background(
-                                                                if (isActive) Color.White else Color.Transparent
-                                                            )
-                                                            .border(1.dp, Color.Black)
-                                                    )
-                                                    Text(
-                                                        text = String.format(Locale.US, "%.2fs", startTime),
-                                                        fontSize = 10.sp,
-                                                        color = Color.Black
-                                                    )
-                                                }
-                                            }
-                                        }
+                                        InsertTimeSignatureButton(
+                                            enabled = true,
+                                            onClick = {
+                                                timeSignatures = timeSignatures + TimeSignature(4, 4)
+                                            },
+                                            contentDescription = "Add Time Signature",
+                                        )
                                     }
+                                } else {
+                                    Spacer(modifier = Modifier.width(MeterRowEndSpacerWidth))
                                 }
                             }
-                            if (timeSignatures.size < 4) {
-                                Box(
-                                    modifier = Modifier
-                                        .padding(start = 4.dp, end = 32.dp, top = 80.dp)
-                                        .shadow(2.dp, RoundedCornerShape(5))
-                                        .size(20.dp)
-                                        .background(Color.Gray, RoundedCornerShape(5))
-                                        .border(1.dp, Color.Black, RoundedCornerShape(5))
-                                        .clickable {
-                                            timeSignatures = timeSignatures + TimeSignature(4, 4)
-                                        },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Add,
-                                        contentDescription = "Add Time Signature",
-                                        tint = Color.Black,
-                                        modifier = Modifier.size(14.dp)
-                                    )
+
+                            MeterScrollRow(
+                                scrollState = timeSignaturesScrollState,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp),
+                                verticalAlignment = Alignment.Top,
+                            ) {
+                                MeterRowStartSpacer()
+                                timeSignatures.forEachIndexed { index, ts ->
+                                    if (index > 0) {
+                                        MeterInsertGapSpacer()
+                                    }
+                                    Column(
+                                        modifier = Modifier
+                                            .widthIn(min = MeterTimeSignatureSlotMinWidth)
+                                            .fillMaxHeight(),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                    ) {
+                                        val num = ts.numerator
+                                        if (num > 0) {
+                                            repeat(num) { beatIndex ->
+                                                val active = activeBeatBox
+                                                val isActive = active?.sectionIndex == index &&
+                                                    active?.beatIndex == beatIndex
+                                                Box(
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .width(16.dp)
+                                                        .background(
+                                                            if (isActive) Color.White else Color.Transparent,
+                                                        )
+                                                        .border(1.dp, Color.Black),
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
-                            } else {
-                                Spacer(modifier = Modifier.width(32.dp))
+                                MeterRowEndSpacer(canAdd = timeSignatures.size < 4)
                             }
                         }
 
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .align(Alignment.BottomCenter)
                                 .padding(bottom = 140.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
@@ -596,6 +583,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
                         }
+                        }
 
                         IconButton(
                             onClick = {
@@ -617,6 +605,137 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+}
+
+private val MeterInsertSlotWidth = 24.dp
+private val MeterTimeSignatureSlotMinWidth = 56.dp
+private val MeterRowStartSpacerWidth = 16.dp
+private val MeterRowEndSpacerWidth = 32.dp
+private val MeterTrailingAddSlotWidth = 60.dp
+
+@Composable
+private fun RowScope.MeterRowStartSpacer() {
+    Spacer(modifier = Modifier.width(MeterRowStartSpacerWidth))
+}
+
+@Composable
+private fun RowScope.MeterInsertGapSpacer() {
+    Spacer(modifier = Modifier.width(MeterInsertSlotWidth))
+}
+
+@Composable
+private fun RowScope.MeterRowEndSpacer(canAdd: Boolean) {
+    Spacer(
+        modifier = Modifier.width(
+            if (canAdd) MeterTrailingAddSlotWidth else MeterRowEndSpacerWidth,
+        ),
+    )
+}
+
+@Composable
+private fun MeterScrollRow(
+    scrollState: ScrollState,
+    modifier: Modifier = Modifier,
+    verticalAlignment: Alignment.Vertical = Alignment.CenterVertically,
+    content: @Composable RowScope.() -> Unit,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .horizontalScroll(scrollState),
+        verticalAlignment = verticalAlignment,
+        content = content,
+    )
+}
+
+@Composable
+private fun TimeSignatureSelectorCell(
+    index: Int,
+    timeSignature: TimeSignature,
+    timeSignatureCount: Int,
+    onNumeratorChange: (Int) -> Unit,
+    onDenominatorChange: (Int) -> Unit,
+    onRemove: () -> Unit,
+    onMoveLeft: () -> Unit,
+    onMoveRight: () -> Unit,
+) {
+    var showMenu by remember { mutableStateOf(false) }
+    Box(
+        modifier = Modifier.widthIn(min = MeterTimeSignatureSlotMinWidth),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box {
+            TimeSignatureSelector(
+                numerator = timeSignature.numerator,
+                onNumeratorChange = onNumeratorChange,
+                denominator = timeSignature.denominator,
+                onDenominatorChange = onDenominatorChange,
+                modifier = Modifier
+                    .padding(horizontal = 0.dp)
+                    .combinedClickable(
+                        onClick = { /* normal clicks handled by children */ },
+                        onLongClick = { showMenu = true },
+                    ),
+            )
+            DropdownMenu(
+                expanded = showMenu,
+                onDismissRequest = { showMenu = false },
+            ) {
+                if (index > 0) {
+                    DropdownMenuItem(
+                        text = { Text("Move Left") },
+                        onClick = {
+                            onMoveLeft()
+                            showMenu = false
+                        },
+                    )
+                }
+                if (index < timeSignatureCount - 1) {
+                    DropdownMenuItem(
+                        text = { Text("Move Right") },
+                        onClick = {
+                            onMoveRight()
+                            showMenu = false
+                        },
+                    )
+                }
+                DropdownMenuItem(
+                    text = { Text("Remove") },
+                    onClick = {
+                        onRemove()
+                        showMenu = false
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun InsertTimeSignatureButton(
+    enabled: Boolean,
+    onClick: () -> Unit,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .padding(horizontal = 2.dp)
+            .alpha(if (enabled) 1f else 0.3f)
+            .shadow(2.dp, RoundedCornerShape(5))
+            .size(20.dp)
+            .background(Color.Gray, RoundedCornerShape(5))
+            .border(1.dp, Color.Black, RoundedCornerShape(5))
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = Icons.Default.Add,
+            contentDescription = contentDescription,
+            tint = Color.Black,
+            modifier = Modifier.size(14.dp),
+        )
     }
 }
 
