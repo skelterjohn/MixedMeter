@@ -16,6 +16,7 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -206,13 +207,23 @@ class MainActivity : ComponentActivity() {
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
-                            Text(
-                                text = bpm.toInt().toString(),
-                                color = Color.Black,
-                                fontSize = 48.sp,
-                                fontWeight = FontWeight.Bold,
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.padding(bottom = 16.dp)
-                            )
+                            ) {
+                                Text(
+                                    text = bpm.toInt().toString(),
+                                    color = Color.Black,
+                                    fontSize = 48.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = " = ♩",
+                                    color = Color.Black,
+                                    fontSize = 48.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                             CircleDisplay(
                                 bpm = bpm,
                                 isOn = isOn,
