@@ -102,7 +102,7 @@ class MainActivity : ComponentActivity() {
                                     }
 
                                     if (isNewBeat) {
-                                        toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 50)
+                                        toneGenerator.startTone(ToneGenerator.TONE_CDMA_PIP, 10)
                                     }
 
                                     beatProgress = (elapsed.toFloat() / currentDurationNanos).coerceIn(0f, 1f)
