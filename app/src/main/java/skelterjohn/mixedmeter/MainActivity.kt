@@ -382,7 +382,7 @@ class MainActivity : ComponentActivity() {
                                         MeterInsertGapSpacer()
                                     }
                                     Box(
-                                        modifier = Modifier.widthIn(min = MeterTimeSignatureSlotMinWidth),
+                                        modifier = Modifier.width(MeterTimeSignatureSlotMinWidth),
                                         contentAlignment = Alignment.Center,
                                     ) {
                                         IconButton(onClick = {
@@ -492,27 +492,31 @@ class MainActivity : ComponentActivity() {
                                     if (index > 0) {
                                         MeterInsertGapSpacer()
                                     }
-                                    Column(
+                                    Box(
                                         modifier = Modifier
-                                            .widthIn(min = MeterTimeSignatureSlotMinWidth)
+                                            .width(MeterTimeSignatureSlotMinWidth)
                                             .fillMaxHeight(),
-                                        horizontalAlignment = Alignment.CenterHorizontally,
                                     ) {
-                                        val num = ts.numerator
-                                        if (num > 0) {
-                                            repeat(num) { beatIndex ->
-                                                val active = activeBeatBox
-                                                val isActive = active?.sectionIndex == index &&
-                                                    active?.beatIndex == beatIndex
-                                                Box(
-                                                    modifier = Modifier
-                                                        .weight(1f)
-                                                        .width(16.dp)
-                                                        .background(
-                                                            if (isActive) Color.White else Color.Transparent,
-                                                        )
-                                                        .border(1.dp, Color.Black),
-                                                )
+                                        Column(
+                                            modifier = Modifier.fillMaxSize(),
+                                            verticalArrangement = Arrangement.spacedBy(0.dp),
+                                        ) {
+                                            val num = ts.numerator
+                                            if (num > 0) {
+                                                repeat(num) { beatIndex ->
+                                                    val active = activeBeatBox
+                                                    val isActive = active?.sectionIndex == index &&
+                                                        active?.beatIndex == beatIndex
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .weight(1f)
+                                                            .fillMaxSize()
+                                                            .background(
+                                                                if (isActive) Color.White else Color.Transparent,
+                                                            )
+                                                            .border(1.dp, Color.Black),
+                                                    )
+                                                }
                                             }
                                         }
                                     }
@@ -662,7 +666,7 @@ private fun TimeSignatureSelectorCell(
 ) {
     var showMenu by remember { mutableStateOf(false) }
     Box(
-        modifier = Modifier.widthIn(min = MeterTimeSignatureSlotMinWidth),
+        modifier = Modifier.width(MeterTimeSignatureSlotMinWidth),
         contentAlignment = Alignment.Center,
     ) {
         Box {
