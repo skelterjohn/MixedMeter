@@ -16,11 +16,16 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.DropdownMenu
@@ -35,6 +40,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -51,7 +57,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -59,6 +68,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.first
@@ -70,6 +80,8 @@ val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "se
 private val TEMPO_UNITS_KEY = floatPreferencesKey("tempo_units")
 val TONE_KEY = stringPreferencesKey("tone_setting")
 private val SELECTED_NOTE_KEY = stringPreferencesKey("selected_note")
+private val NUMERATOR_KEY = intPreferencesKey("numerator")
+private val DENOMINATOR_KEY = intPreferencesKey("denominator")
 
 private fun calculateBpm(tempoUnits: Float): Float {
     val interval = (tempoUnits / 10f).toInt()
@@ -95,6 +107,7 @@ class MainActivity : ComponentActivity() {
                 var isOn by remember { mutableStateOf(false) }
                 var beatProgress by remember { mutableFloatStateOf(0f) }
                 var isLoaded by remember { mutableStateOf(false) }
+                var currentBeat by remember { mutableIntStateOf(1) }
 
                 val bpm by remember {
                     derivedStateOf { calculateBpm(tempoUnits) }
@@ -103,6 +116,9 @@ class MainActivity : ComponentActivity() {
                 var noteDropdownExpanded by remember { mutableStateOf(false) }
                 val noteOptions = remember { listOf("♪", "♪.", "♩", "♩.", "𝅗𝅥", "𝅗𝅥.", "𝅝") }
                 var selectedNote by remember { mutableStateOf("♩") }
+
+                var numerator by remember { mutableIntStateOf(4) }
+                var denominator by remember { mutableIntStateOf(4) }
                 
                 var committedBpm by remember { mutableFloatStateOf(bpm) }
                 var pulsingBpm by remember { mutableFloatStateOf(bpm) }
@@ -117,6 +133,12 @@ class MainActivity : ComponentActivity() {
                     }
                     preferences[SELECTED_NOTE_KEY]?.let { savedNote ->
                         selectedNote = savedNote
+                    }
+                    preferences[NUMERATOR_KEY]?.let { savedNumerator ->
+                        numerator = savedNumerator
+                    }
+                    preferences[DENOMINATOR_KEY]?.let { savedDenominator ->
+                        denominator = savedDenominator
                     }
                     isLoaded = true
                 }
@@ -137,22 +159,43 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                LaunchedEffect(numerator) {
+                    if (isLoaded) {
+                        context.dataStore.edit { settings ->
+                            settings[NUMERATOR_KEY] = numerator
+                        }
+                    }
+                }
+
+                LaunchedEffect(denominator) {
+                    if (isLoaded) {
+                        context.dataStore.edit { settings ->
+                            settings[DENOMINATOR_KEY] = denominator
+                        }
+                    }
+                }
+
                 val toneSetting by remember {
                     context.dataStore.data
                         .map { preferences -> preferences[TONE_KEY] ?: "bip" }
                 }.collectAsState(initial = "bip")
 
-                LaunchedEffect(isOn, toneSetting) {
+                LaunchedEffect(isOn, toneSetting, numerator) {
                     if (isOn) {
                         Log.d("MixedMeter", "Starting metronome with tone: $toneSetting")
                         val toneGenerator = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
-                        val toneType = if (toneSetting == "beep") {
+                        val mainToneType = if (toneSetting == "beep") {
                             ToneGenerator.TONE_PROP_BEEP
                         } else {
                             ToneGenerator.TONE_CDMA_PIP
                         }
+                        val accentedToneType = ToneGenerator.TONE_PROP_BEEP2
+
                         try {
                             var beatStartTimeNanos = -1L
+                            var beatInMeasure = 0
+                            val effectiveNumerator = if (numerator > 0) numerator else 4
+
                             while (true) {
                                 withFrameNanos { frameTimeNanos ->
                                     var isNewBeat = false
@@ -160,6 +203,7 @@ class MainActivity : ComponentActivity() {
                                         beatStartTimeNanos = frameTimeNanos
                                         pulsingBpm = committedBpm
                                         isNewBeat = true
+                                        beatInMeasure = 0
                                     }
 
                                     var currentDurationNanos = (60_000_000_000f / pulsingBpm).toLong()
@@ -171,10 +215,16 @@ class MainActivity : ComponentActivity() {
                                         currentDurationNanos = (60_000_000_000f / pulsingBpm).toLong()
                                         elapsed = frameTimeNanos - beatStartTimeNanos
                                         isNewBeat = true
+                                        beatInMeasure = (beatInMeasure + 1) % effectiveNumerator
                                     }
 
                                     if (isNewBeat) {
-                                        toneGenerator.startTone(toneType, 10)
+                                        currentBeat = beatInMeasure + 1
+                                        if (beatInMeasure == 0) {
+                                            toneGenerator.startTone(accentedToneType, 10)
+                                        } else {
+                                            toneGenerator.startTone(mainToneType, 10)
+                                        }
                                     }
 
                                     beatProgress = (elapsed.toFloat() / currentDurationNanos).coerceIn(0f, 1f)
@@ -185,6 +235,7 @@ class MainActivity : ComponentActivity() {
                         }
                     } else {
                         beatProgress = 0f
+                        currentBeat = 1
                     }
                 }
 
@@ -226,6 +277,13 @@ class MainActivity : ComponentActivity() {
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.Center
                         ) {
+                            TimeSignatureSelector(
+                                numerator = numerator,
+                                onNumeratorChange = { numerator = it },
+                                denominator = denominator,
+                                onDenominatorChange = { denominator = it },
+                                modifier = Modifier.padding(bottom = 32.dp)
+                            )
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.padding(bottom = 16.dp)
@@ -264,6 +322,7 @@ class MainActivity : ComponentActivity() {
                                 bpm = bpm,
                                 isOn = isOn,
                                 beatProgress = beatProgress,
+                                currentBeat = currentBeat,
                                 onToggle = {
                                     if (!isOn) {
                                         committedBpm = bpm
@@ -306,10 +365,94 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
+fun TimeSignatureSelector(
+    numerator: Int,
+    onNumeratorChange: (Int) -> Unit,
+    denominator: Int,
+    onDenominatorChange: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val denominatorOptions = listOf(1, 2, 4, 8, 16, 32)
+
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy((-12).dp)
+    ) {
+        // Numerator
+        BasicTextField(
+            value = if (numerator == 0) "" else numerator.toString(),
+            onValueChange = {
+                val filtered = it.filter { char -> char.isDigit() }
+                if (filtered.length <= 3) {
+                    onNumeratorChange(filtered.toIntOrNull() ?: 0)
+                }
+            },
+            textStyle = TextStyle(
+                fontSize = 48.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                color = Color.Black
+            ),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier
+                .width(IntrinsicSize.Min)
+                .widthIn(min = 64.dp),
+            decorationBox = { innerTextField ->
+                Box(contentAlignment = Alignment.Center) {
+                    if (numerator == 0) {
+                        Text(
+                            text = "4",
+                            style = TextStyle(
+                                fontSize = 48.sp,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center,
+                                color = Color.Black.copy(alpha = 0.3f)
+                            )
+                        )
+                    }
+                    innerTextField()
+                }
+            }
+        )
+
+        // Denominator
+        Box(contentAlignment = Alignment.Center) {
+            Text(
+                text = if (denominator == 0) "4" else denominator.toString(),
+                fontSize = 48.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .widthIn(min = 64.dp)
+                    .clickable { expanded = true }
+            )
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                denominatorOptions.forEach { option ->
+                    DropdownMenuItem(
+                        text = { Text(option.toString(), fontSize = 32.sp) },
+                        onClick = {
+                            onDenominatorChange(option)
+                            expanded = false
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun CircleDisplay(
     bpm: Float,
     isOn: Boolean,
     beatProgress: Float,
+    currentBeat: Int,
     onToggle: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -386,6 +529,15 @@ fun CircleDisplay(
                 )
             }
         }
+
+        if (isOn) {
+            Text(
+                text = currentBeat.toString(),
+                color = Color.Black,
+                fontSize = 64.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
     }
 }
 
@@ -393,6 +545,6 @@ fun CircleDisplay(
 @Composable
 fun GreetingPreview() {
     MixedMeterTheme {
-        CircleDisplay(bpm = 120f, isOn = false, beatProgress = 0f, onToggle = {})
+        CircleDisplay(bpm = 120f, isOn = false, beatProgress = 0f, currentBeat = 1, onToggle = {})
     }
 }
