@@ -10,13 +10,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.ui.draw.shadow
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -57,7 +56,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -147,7 +148,7 @@ class MainActivity : ComponentActivity() {
                             timeSignatures = saved.split(";").filter { it.contains("/") }.map {
                                 val parts = it.split("/")
                                 TimeSignature(parts[0].toIntOrNull() ?: 4, parts[1].toIntOrNull() ?: 4)
-                            }
+                            }.take(4)
                         }
                     }
                     isLoaded = true
@@ -267,14 +268,16 @@ class MainActivity : ComponentActivity() {
                             Spacer(modifier = Modifier.width(16.dp))
                             timeSignatures.forEachIndexed { index, ts ->
                                 if (index > 0) {
+                                    val canAdd = timeSignatures.size < 4
                                     Box(
                                         modifier = Modifier
                                             .padding(horizontal = 2.dp, vertical = 32.dp)
+                                            .alpha(if (canAdd) 1f else 0.3f)
                                             .shadow(2.dp, RoundedCornerShape(5))
                                             .size(20.dp)
                                             .background(Color.Gray, RoundedCornerShape(5))
                                             .border(1.dp, Color.Black, RoundedCornerShape(5))
-                                            .clickable {
+                                            .clickable(enabled = canAdd) {
                                                 timeSignatures = timeSignatures.toMutableList().apply {
                                                     add(index, TimeSignature(4, 4))
                                                 }
@@ -368,24 +371,28 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                             }
-                            Box(
-                                modifier = Modifier
-                                    .padding(start = 4.dp, end = 32.dp, bottom = 32.dp)
-                                    .shadow(2.dp, RoundedCornerShape(5))
-                                    .size(20.dp)
-                                    .background(Color.Gray, RoundedCornerShape(5))
-                                    .border(1.dp, Color.Black, RoundedCornerShape(5))
-                                    .clickable {
-                                        timeSignatures = timeSignatures + TimeSignature(4, 4)
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Add,
-                                    contentDescription = "Add Time Signature",
-                                    tint = Color.Black,
-                                    modifier = Modifier.size(14.dp)
-                                )
+                            if (timeSignatures.size < 4) {
+                                Box(
+                                    modifier = Modifier
+                                        .padding(start = 4.dp, end = 32.dp, bottom = 32.dp)
+                                        .shadow(2.dp, RoundedCornerShape(5))
+                                        .size(20.dp)
+                                        .background(Color.Gray, RoundedCornerShape(5))
+                                        .border(1.dp, Color.Black, RoundedCornerShape(5))
+                                        .clickable {
+                                            timeSignatures = timeSignatures + TimeSignature(4, 4)
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = "Add Time Signature",
+                                        tint = Color.Black,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                            } else {
+                                Spacer(modifier = Modifier.width(32.dp))
                             }
                         }
 
