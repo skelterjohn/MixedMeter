@@ -116,7 +116,6 @@ class MainActivity : ComponentActivity() {
                 var boxLayoutCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
                 var isOn by remember { mutableStateOf(false) }
                 var beatProgress by remember { mutableFloatStateOf(0f) }
-                var currentBeat by remember { mutableIntStateOf(1) }
                 var isLoaded by remember { mutableStateOf(false) }
 
                 val bpm by remember {
@@ -183,63 +182,33 @@ class MainActivity : ComponentActivity() {
                         .map { preferences -> preferences[TONE_KEY] ?: "bip" }
                 }.collectAsState(initial = "bip")
 
-                LaunchedEffect(isOn, toneSetting, timeSignatures, bpm) {
+                LaunchedEffect(isOn, toneSetting, bpm) {
                     if (isOn) {
                         Log.d("MixedMeter", "Starting metronome with tone: $toneSetting")
                         val toneGenerator = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
-                        val mainToneType = if (toneSetting == "beep") {
+                        val toneType = if (toneSetting == "beep") {
                             ToneGenerator.TONE_PROP_BEEP
                         } else {
                             ToneGenerator.TONE_CDMA_PIP
                         }
-                        val accentedToneType = if (toneSetting == "beep") {
-                            ToneGenerator.TONE_DTMF_7
-                        } else {
-                            ToneGenerator.TONE_PROP_BEEP
-                        }
 
                         try {
                             var beatStartTimeNanos = -1L
-                            var beatInMeasure = 0
-                            var measureIndex = 0
 
                             while (true) {
                                 withFrameNanos { frameTimeNanos ->
-                                    var isNewBeat = false
                                     if (beatStartTimeNanos == -1L) {
                                         beatStartTimeNanos = frameTimeNanos
-                                        isNewBeat = true
-                                        beatInMeasure = 0
-                                        measureIndex = 0
+                                        toneGenerator.startTone(toneType, 30)
                                     }
 
-                                    var currentDurationNanos = (60_000_000_000f / bpm).toLong()
+                                    val currentDurationNanos = (60_000_000_000f / bpm).toLong()
                                     var elapsed = frameTimeNanos - beatStartTimeNanos
 
                                     while (elapsed >= currentDurationNanos) {
                                         beatStartTimeNanos += currentDurationNanos
-                                        currentDurationNanos = (60_000_000_000f / bpm).toLong()
                                         elapsed = frameTimeNanos - beatStartTimeNanos
-                                        isNewBeat = true
-                                        
-                                        beatInMeasure++
-                                        val list = timeSignatures.ifEmpty { listOf(TimeSignature(4, 4)) }
-                                        val ts = list[measureIndex % list.size]
-                                        val num = if (ts.numerator > 0) ts.numerator else 4
-                                        
-                                        if (beatInMeasure >= num) {
-                                            beatInMeasure = 0
-                                            measureIndex++
-                                        }
-                                    }
-
-                                    if (isNewBeat) {
-                                        currentBeat = beatInMeasure + 1
-                                        if (beatInMeasure == 0) {
-                                            toneGenerator.startTone(accentedToneType, 30)
-                                        } else {
-                                            toneGenerator.startTone(mainToneType, 30)
-                                        }
+                                        toneGenerator.startTone(toneType, 30)
                                     }
 
                                     beatProgress = (elapsed.toFloat() / currentDurationNanos).coerceIn(0f, 1f)
@@ -250,7 +219,6 @@ class MainActivity : ComponentActivity() {
                         }
                     } else {
                         beatProgress = 0f
-                        currentBeat = 1
                     }
                 }
 
@@ -435,15 +403,6 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
                                 }
-                            }
-                            if (isOn) {
-                                Text(
-                                    text = currentBeat.toString(),
-                                    color = Color.Black,
-                                    fontSize = 64.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(bottom = 8.dp)
-                                )
                             }
                             CircleDisplay(
                                 bpm = bpm,
