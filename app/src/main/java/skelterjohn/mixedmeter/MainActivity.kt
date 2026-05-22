@@ -2,8 +2,6 @@ package skelterjohn.mixedmeter
 
 import android.content.Context
 import android.content.Intent
-import android.media.AudioManager
-import android.media.ToneGenerator
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -58,6 +56,8 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import kotlinx.coroutines.isActive
+import java.util.concurrent.atomic.AtomicLong
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -98,13 +98,6 @@ private val SELECTED_NOTE_KEY = stringPreferencesKey("selected_note")
 private val TIME_SIGNATURES_KEY = stringPreferencesKey("time_signatures")
 
 data class TimeSignature(val numerator: Int, val denominator: Int)
-
-private data class BeatBoxTiming(
-    val sectionIndex: Int,
-    val beatIndex: Int,
-    val startTime: Float,
-    val duration: Float,
-)
 
 private fun calculateBpm(tempoUnits: Float): Float {
     val interval = (tempoUnits / 10f).toInt()
@@ -209,31 +202,20 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                val metronomeClickSchedule by remember {
+                    derivedStateOf {
+                        buildMetronomeClickSchedule(
+                            bpm = committedBpm,
+                            selectedNoteValue = selectedNoteValue,
+                            timeSignatures = timeSignatures,
+                        )
+                    }
+                }
+
                 val beatBoxSchedule by remember {
                     derivedStateOf {
-                        val boxes = mutableListOf<BeatBoxTiming>()
-                        var currentTime = 0f
-                        val secondsPerBeat = 60f / committedBpm
-
-                        timeSignatures.forEachIndexed { sectionIndex, ts ->
-                            val boxDuration = if (ts.denominator == 0) {
-                                0f
-                            } else {
-                                secondsPerBeat * ((1f / ts.denominator) / selectedNoteValue)
-                            }
-                            repeat(ts.numerator) { beatIndex ->
-                                boxes.add(
-                                    BeatBoxTiming(
-                                        sectionIndex = sectionIndex,
-                                        beatIndex = beatIndex,
-                                        startTime = currentTime,
-                                        duration = boxDuration,
-                                    )
-                                )
-                                currentTime += boxDuration
-                            }
-                        }
-                        boxes to currentTime
+                        val schedule = metronomeClickSchedule
+                        schedule.boxes to schedule.totalCycleNanos / 1_000_000_000f
                     }
                 }
 
@@ -263,69 +245,40 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                val cycleAnchorNanos = remember { AtomicLong(0L) }
+
                 LaunchedEffect(isOn, toneSetting, committedBpm, timeSignatures, selectedNote) {
                     if (isOn) {
                         Log.d("MixedMeter", "Starting metronome with tone: $toneSetting")
-                        val toneGenerator = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
-                        val toneType = if (toneSetting == "beep") {
-                            ToneGenerator.TONE_PROP_BEEP
-                        } else {
-                            ToneGenerator.TONE_CDMA_PIP
-                        }
-
+                        cycleAnchorNanos.set(0L)
+                        val clickPlayer = MetronomeClickPlayer(useBeepTone = toneSetting == "beep")
+                        clickPlayer.warmUp()
+                        val metronomeEngine = MetronomeEngine(
+                            clickPlayer = clickPlayer,
+                            getSchedule = { metronomeClickSchedule },
+                            onCycleAnchor = { cycleAnchorNanos.set(it) },
+                        )
+                        metronomeEngine.start()
                         try {
-                            var cycleStartTimeNanos = -1L
-                            var beatStartTimeNanos = -1L
-                            var lastClickedBeat: Pair<Int, Int>? = null
-
-                            while (true) {
-                                withFrameNanos { frameTimeNanos ->
-                                    val (boxes, totalCycleDuration) = beatBoxSchedule
-                                    if (totalCycleDuration > 0f) {
-                                        if (cycleStartTimeNanos < 0L) {
-                                            cycleStartTimeNanos = frameTimeNanos
-                                        }
-
-                                        val cycleElapsedSeconds =
-                                            (frameTimeNanos - cycleStartTimeNanos) / 1_000_000_000f
-                                        playbackPosition =
-                                            cycleElapsedSeconds % totalCycleDuration
-
-                                        val active = boxes.firstOrNull { box ->
-                                            playbackPosition >= box.startTime &&
-                                                playbackPosition < box.startTime + box.duration
-                                        }
-                                        if (active != null && active.duration > 0f) {
-                                            val beatKey = active.sectionIndex to active.beatIndex
-                                            if (beatKey != lastClickedBeat) {
-                                                toneGenerator.startTone(toneType, 30)
-                                                lastClickedBeat = beatKey
-                                            }
-                                        }
+                            while (isActive) {
+                                withFrameNanos {
+                                    val anchor = cycleAnchorNanos.get()
+                                    playbackPosition = if (anchor > 0L) {
+                                        metronomePlaybackPosition(
+                                            cycleAnchorNanos = anchor,
+                                            getSchedule = { metronomeClickSchedule },
+                                        )
                                     } else {
-                                        if (beatStartTimeNanos < 0L) {
-                                            beatStartTimeNanos = frameTimeNanos
-                                            toneGenerator.startTone(toneType, 30)
-                                        }
-
-                                        val beatDurationNanos = (60_000_000_000f / committedBpm).toLong()
-                                        var elapsed = frameTimeNanos - beatStartTimeNanos
-
-                                        while (elapsed >= beatDurationNanos) {
-                                            beatStartTimeNanos += beatDurationNanos
-                                            elapsed = frameTimeNanos - beatStartTimeNanos
-                                            toneGenerator.startTone(toneType, 30)
-                                        }
-
-                                        playbackPosition =
-                                            (elapsed.toFloat() / beatDurationNanos).coerceIn(0f, 1f)
+                                        0f
                                     }
                                 }
                             }
                         } finally {
-                            toneGenerator.release()
+                            metronomeEngine.stop()
+                            clickPlayer.release()
                         }
                     } else {
+                        cycleAnchorNanos.set(0L)
                         playbackPosition = 0f
                     }
                 }
