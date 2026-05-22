@@ -8,14 +8,15 @@ import android.media.ToneGenerator
 import android.util.Log
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * One-shot clicks via [SoundPool], with [ToneGenerator] fallback if loading fails.
+ * Supports separate beat and lead tones (same bip/beep choices).
  */
 class MetronomeClickPlayer(
     context: Context,
-    private val useBeepTone: Boolean,
+    private val useBeepBeatTone: Boolean,
+    private val useBeepLeadTone: Boolean,
 ) {
     private val soundPool: SoundPool = SoundPool.Builder()
         .setMaxStreams(4)
@@ -27,40 +28,49 @@ class MetronomeClickPlayer(
         )
         .build()
 
-    private val soundId: Int
-    private val isReady = AtomicBoolean(false)
-    private val loadedLatch = CountDownLatch(1)
+    private val beatSoundId: Int
+    private val leadSoundId: Int
+    private val loadedLatch = CountDownLatch(2)
     private val useToneFallback: Boolean
     private val toneGenerator: ToneGenerator?
 
     init {
-        val wavFile = MetronomeClickWav.cacheFile(context, useBeepTone)
+        val beatWav = MetronomeClickWav.cacheFile(context, useBeepBeatTone)
+        val leadWav = MetronomeClickWav.cacheFile(context, useBeepLeadTone)
         soundPool.setOnLoadCompleteListener { _, sampleId, status ->
             if (sampleId > 0 && status == 0) {
-                isReady.set(true)
                 loadedLatch.countDown()
             }
         }
-        soundId = soundPool.load(wavFile.absolutePath, 1)
-        if (soundId == 0) {
-            Log.e(TAG, "SoundPool failed to load click from ${wavFile.absolutePath}, using ToneGenerator")
+        beatSoundId = soundPool.load(beatWav.absolutePath, 1)
+        leadSoundId = if (beatWav.absolutePath == leadWav.absolutePath) {
+            beatSoundId
+        } else {
+            soundPool.load(leadWav.absolutePath, 1)
+        }
+        if (beatSoundId == 0 || (leadSoundId == 0 && leadSoundId != beatSoundId)) {
+            Log.e(TAG, "SoundPool failed to load click samples, using ToneGenerator")
             useToneFallback = true
             toneGenerator = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
-            loadedLatch.countDown()
+            repeat(2) { loadedLatch.countDown() }
         } else {
             useToneFallback = false
             toneGenerator = null
+            if (leadSoundId == beatSoundId) {
+                loadedLatch.countDown()
+            }
         }
     }
 
-    /** Block until the click sample is ready (call from the metronome thread, not the UI thread). */
+    /** Block until click samples are ready (call from the metronome thread, not the UI thread). */
     fun ensureReady() {
         loadedLatch.await(3, TimeUnit.SECONDS)
     }
 
-    fun play() {
+    fun play(useLeadTone: Boolean = false) {
         if (useToneFallback) {
-            val toneType = if (useBeepTone) {
+            val useBeep = if (useLeadTone) useBeepLeadTone else useBeepBeatTone
+            val toneType = if (useBeep) {
                 ToneGenerator.TONE_PROP_BEEP
             } else {
                 ToneGenerator.TONE_CDMA_PIP
@@ -68,7 +78,8 @@ class MetronomeClickPlayer(
             toneGenerator?.startTone(toneType, 30)
             return
         }
-        if (!isReady.get() || soundId == 0) return
+        val soundId = if (useLeadTone) leadSoundId else beatSoundId
+        if (soundId == 0) return
         soundPool.play(soundId, 1f, 1f, 1, 0, 1f)
     }
 

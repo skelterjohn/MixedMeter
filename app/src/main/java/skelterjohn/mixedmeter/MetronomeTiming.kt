@@ -10,6 +10,8 @@ data class BeatBoxTiming(
 data class MetronomeClickSchedule(
     val boxes: List<BeatBoxTiming>,
     val clickOffsetsNanos: LongArray,
+    /** Parallel to [clickOffsetsNanos]; true for the first beat of each time signature section. */
+    val clickUseLeadTone: BooleanArray,
     val totalCycleNanos: Long,
     val beatPeriodNanos: Long,
 )
@@ -21,6 +23,7 @@ fun buildMetronomeClickSchedule(
 ): MetronomeClickSchedule {
     val boxes = mutableListOf<BeatBoxTiming>()
     val clickOffsetsNanos = mutableListOf<Long>()
+    val clickUseLeadTone = mutableListOf<Boolean>()
     var sectionStartNanos = 0L
 
     timeSignatures.forEachIndexed { sectionIndex, ts ->
@@ -29,6 +32,7 @@ fun buildMetronomeClickSchedule(
         repeat(ts.numerator) { beatIndex ->
             val offsetNanos = sectionStartNanos + beatIndex * boxDurationNanos
             clickOffsetsNanos.add(offsetNanos)
+            clickUseLeadTone.add(beatIndex == 0)
             boxes.add(
                 BeatBoxTiming(
                     sectionIndex = sectionIndex,
@@ -47,6 +51,7 @@ fun buildMetronomeClickSchedule(
     return MetronomeClickSchedule(
         boxes = boxes,
         clickOffsetsNanos = clickOffsetsNanos.toLongArray(),
+        clickUseLeadTone = clickUseLeadTone.toBooleanArray(),
         totalCycleNanos = sectionStartNanos,
         beatPeriodNanos = beatPeriodNanos,
     )

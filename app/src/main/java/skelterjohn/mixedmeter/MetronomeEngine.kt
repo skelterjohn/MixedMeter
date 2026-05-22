@@ -44,18 +44,18 @@ class MetronomeEngine(
         }
     }
 
-    /** No time signatures: fixed interval grid at 60/bpm. */
+    /** No time signatures: fixed interval grid at 60/bpm (beat tone only). */
     private fun runSimpleBpmLoop(periodNanos: Long) {
         val anchorNanos = System.nanoTime()
         onCycleAnchor(anchorNanos)
-        clickPlayer.play()
+        clickPlayer.play(useLeadTone = false)
 
         var nextDeadlineNanos = anchorNanos + periodNanos
         while (running) {
             nextDeadlineNanos = skipLateSlots(nextDeadlineNanos, periodNanos)
             waitUntilDeadline(nextDeadlineNanos)
             if (!running) break
-            clickPlayer.play()
+            clickPlayer.play(useLeadTone = false)
             nextDeadlineNanos += periodNanos
         }
     }
@@ -63,7 +63,7 @@ class MetronomeEngine(
     private fun runBoxScheduleLoop(schedule: MetronomeClickSchedule) {
         val anchorNanos = System.nanoTime()
         onCycleAnchor(anchorNanos)
-        clickPlayer.play()
+        playClickAtIndex(clickIndex = 0L, schedule = schedule)
 
         var nextClickIndex = 1L
         var nextDeadlineNanos = deadlineForClickIndex(anchorNanos, nextClickIndex, schedule)
@@ -76,10 +76,21 @@ class MetronomeEngine(
             }
             waitUntilDeadline(nextDeadlineNanos)
             if (!running) break
-            clickPlayer.play()
+            playClickAtIndex(clickIndex = nextClickIndex, schedule = schedule)
             nextClickIndex++
             nextDeadlineNanos = deadlineForClickIndex(anchorNanos, nextClickIndex, schedule)
         }
+    }
+
+    private fun playClickAtIndex(clickIndex: Long, schedule: MetronomeClickSchedule) {
+        val boundaryCount = schedule.clickOffsetsNanos.size
+        if (boundaryCount == 0) {
+            clickPlayer.play(useLeadTone = false)
+            return
+        }
+        val boundaryIndex = (clickIndex % boundaryCount).toInt()
+        val useLead = schedule.clickUseLeadTone.getOrElse(boundaryIndex) { false }
+        clickPlayer.play(useLeadTone = useLead)
     }
 
     private fun skipLateSlots(deadlineNanos: Long, periodNanos: Long): Long {

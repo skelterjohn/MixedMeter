@@ -94,6 +94,8 @@ import kotlin.math.sqrt
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 private val TEMPO_UNITS_KEY = floatPreferencesKey("tempo_units")
 val TONE_KEY = stringPreferencesKey("tone_setting")
+val LEAD_TONE_KEY = stringPreferencesKey("lead_tone_setting")
+val TONE_OPTIONS = listOf("Bip (Soft)" to "bip", "Beep (High)" to "beep")
 private val SELECTED_NOTE_KEY = stringPreferencesKey("selected_note")
 private val TIME_SIGNATURES_KEY = stringPreferencesKey("time_signatures")
 
@@ -182,9 +184,14 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                val toneSetting by remember {
+                val beatToneSetting by remember {
                     context.dataStore.data
                         .map { preferences -> preferences[TONE_KEY] ?: "bip" }
+                }.collectAsState(initial = "bip")
+
+                val leadToneSetting by remember {
+                    context.dataStore.data
+                        .map { preferences -> preferences[LEAD_TONE_KEY] ?: "bip" }
                 }.collectAsState(initial = "bip")
 
                 val selectedNoteValue by remember {
@@ -247,13 +254,17 @@ class MainActivity : ComponentActivity() {
 
                 val cycleAnchorNanos = remember { AtomicLong(0L) }
 
-                LaunchedEffect(isOn, toneSetting, committedBpm, timeSignatures, selectedNote) {
+                LaunchedEffect(isOn, beatToneSetting, leadToneSetting, committedBpm, timeSignatures, selectedNote) {
                     if (isOn) {
-                        Log.d("MixedMeter", "Starting metronome with tone: $toneSetting")
+                        Log.d(
+                            "MixedMeter",
+                            "Starting metronome beat tone: $beatToneSetting, lead tone: $leadToneSetting",
+                        )
                         cycleAnchorNanos.set(0L)
                         val clickPlayer = MetronomeClickPlayer(
                             context = context,
-                            useBeepTone = toneSetting == "beep",
+                            useBeepBeatTone = beatToneSetting == "beep",
+                            useBeepLeadTone = leadToneSetting == "beep",
                         )
                         val metronomeEngine = MetronomeEngine(
                             clickPlayer = clickPlayer,
