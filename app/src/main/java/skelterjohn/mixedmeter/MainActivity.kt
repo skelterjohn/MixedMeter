@@ -1,5 +1,7 @@
 package skelterjohn.mixedmeter
 
+import android.media.AudioManager
+import android.media.ToneGenerator
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -76,26 +78,38 @@ class MainActivity : ComponentActivity() {
 
                 LaunchedEffect(isOn) {
                     if (isOn) {
-                        var beatStartTimeNanos = -1L
-                        while (true) {
-                            withFrameNanos { frameTimeNanos ->
-                                if (beatStartTimeNanos == -1L) {
-                                    beatStartTimeNanos = frameTimeNanos
-                                    pulsingBpm = committedBpm
+                        val toneGenerator = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
+                        try {
+                            var beatStartTimeNanos = -1L
+                            while (true) {
+                                withFrameNanos { frameTimeNanos ->
+                                    var isNewBeat = false
+                                    if (beatStartTimeNanos == -1L) {
+                                        beatStartTimeNanos = frameTimeNanos
+                                        pulsingBpm = committedBpm
+                                        isNewBeat = true
+                                    }
+
+                                    var currentDurationNanos = (60_000_000_000f / pulsingBpm).toLong()
+                                    var elapsed = frameTimeNanos - beatStartTimeNanos
+
+                                    while (elapsed >= currentDurationNanos) {
+                                        beatStartTimeNanos += currentDurationNanos
+                                        pulsingBpm = committedBpm
+                                        currentDurationNanos = (60_000_000_000f / pulsingBpm).toLong()
+                                        elapsed = frameTimeNanos - beatStartTimeNanos
+                                        isNewBeat = true
+                                    }
+
+                                    if (isNewBeat) {
+                                        toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP, 50)
+                                    }
+
+                                    beatProgress = (elapsed.toFloat() / currentDurationNanos).coerceIn(0f, 1f)
                                 }
-
-                                var currentDurationNanos = (60_000_000_000f / pulsingBpm).toLong()
-                                var elapsed = frameTimeNanos - beatStartTimeNanos
-
-                                while (elapsed >= currentDurationNanos) {
-                                    beatStartTimeNanos += currentDurationNanos
-                                    pulsingBpm = committedBpm
-                                    currentDurationNanos = (60_000_000_000f / pulsingBpm).toLong()
-                                    elapsed = frameTimeNanos - beatStartTimeNanos
-                                }
-
-                                beatProgress = (elapsed.toFloat() / currentDurationNanos).coerceIn(0f, 1f)
                             }
+                        } finally {
+                            toneGenerator.release()
                         }
                     } else {
                         beatProgress = 0f
