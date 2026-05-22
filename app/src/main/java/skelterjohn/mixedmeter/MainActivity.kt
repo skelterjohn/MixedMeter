@@ -215,7 +215,6 @@ class MainActivity : ComponentActivity() {
                             )
                             CircleDisplay(
                                 bpm = bpm,
-                                pulsingBpm = pulsingBpm,
                                 isOn = isOn,
                                 beatProgress = beatProgress,
                                 onToggle = {
@@ -262,7 +261,6 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun CircleDisplay(
     bpm: Float,
-    pulsingBpm: Float,
     isOn: Boolean,
     beatProgress: Float,
     onToggle: () -> Unit,
@@ -274,9 +272,6 @@ fun CircleDisplay(
     val sweepAngle = 300f // Full rotation minus the 60 degree gap at the bottom
     val ratio = ((bpm - minBpm) / (maxBpm - minBpm)).coerceIn(0f, 1f)
     val currentAngle = startAngle + ratio * sweepAngle
-
-    val pulsingRatio = ((pulsingBpm - minBpm) / (maxBpm - minBpm)).coerceIn(0f, 1f)
-    val pulsingAngle = startAngle + pulsingRatio * sweepAngle
 
     Box(
         modifier = modifier
@@ -308,7 +303,7 @@ fun CircleDisplay(
                 // Grey sweep covers the white clockwise
                 drawArc(
                     color = Color.Gray,
-                    startAngle = pulsingAngle,
+                    startAngle = currentAngle,
                     sweepAngle = 360f * beatProgress,
                     useCenter = true,
                     topLeft = Offset(center.x - innerRadius, center.y - innerRadius),
@@ -351,6 +346,6 @@ fun CircleDisplay(
 @Composable
 fun GreetingPreview() {
     MixedMeterTheme {
-        CircleDisplay(bpm = 120f, pulsingBpm = 120f, isOn = false, beatProgress = 0f, onToggle = {})
+        CircleDisplay(bpm = 120f, isOn = false, beatProgress = 0f, onToggle = {})
     }
 }
