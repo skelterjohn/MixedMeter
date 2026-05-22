@@ -210,7 +210,7 @@ class MainActivity : ComponentActivity() {
                     derivedStateOf {
                         val boxes = mutableListOf<BeatBoxTiming>()
                         var currentTime = 0f
-                        val secondsPerBeat = 60f / bpm
+                        val secondsPerBeat = 60f / committedBpm
 
                         timeSignatures.forEachIndexed { sectionIndex, ts ->
                             val boxDuration = if (ts.denominator == 0) {
@@ -260,7 +260,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                LaunchedEffect(isOn, toneSetting, bpm, timeSignatures, selectedNote) {
+                LaunchedEffect(isOn, toneSetting, committedBpm, timeSignatures, selectedNote) {
                     if (isOn) {
                         Log.d("MixedMeter", "Starting metronome with tone: $toneSetting")
                         val toneGenerator = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
@@ -305,7 +305,7 @@ class MainActivity : ComponentActivity() {
                                             toneGenerator.startTone(toneType, 30)
                                         }
 
-                                        val beatDurationNanos = (60_000_000_000f / bpm).toLong()
+                                        val beatDurationNanos = (60_000_000_000f / committedBpm).toLong()
                                         var elapsed = frameTimeNanos - beatStartTimeNanos
 
                                         while (elapsed >= beatDurationNanos) {
