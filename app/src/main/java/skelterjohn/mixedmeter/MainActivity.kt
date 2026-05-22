@@ -6,6 +6,7 @@ import android.media.AudioManager
 import android.media.ToneGenerator
 import android.os.Bundle
 import android.util.Log
+import java.util.Locale
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -223,6 +224,40 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                val selectedNoteValue by remember {
+                    derivedStateOf {
+                        when (selectedNote) {
+                            "♪" -> 0.125f
+                            "♪." -> 0.1875f
+                            "♩" -> 0.25f
+                            "♩." -> 0.375f
+                            "𝅗𝅥" -> 0.5f
+                            "𝅗𝅥." -> 0.75f
+                            "𝅝" -> 1.0f
+                            else -> 0.25f
+                        }
+                    }
+                }
+
+                val beatTimings by remember {
+                    derivedStateOf {
+                        val timings = mutableListOf<List<Float>>()
+                        var currentTime = 0f
+                        val secondsPerBeat = 60f / bpm
+                        
+                        timeSignatures.forEach { ts ->
+                            val sectionTimings = mutableListOf<Float>()
+                            val boxDuration = if (ts.denominator == 0) 0f else secondsPerBeat * ((1f / ts.denominator) / selectedNoteValue)
+                            repeat(ts.numerator) {
+                                sectionTimings.add(currentTime)
+                                currentTime += boxDuration
+                            }
+                            timings.add(sectionTimings)
+                        }
+                        timings
+                    }
+                }
+
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
                     containerColor = Color.Gray
@@ -263,7 +298,7 @@ class MainActivity : ComponentActivity() {
                                 .fillMaxWidth()
                                 .padding(top = 16.dp)
                                 .horizontalScroll(rememberScrollState()),
-                            verticalAlignment = Alignment.Bottom
+                            verticalAlignment = Alignment.Top
                         ) {
                             Spacer(modifier = Modifier.width(16.dp))
                             timeSignatures.forEachIndexed { index, ts ->
@@ -271,7 +306,7 @@ class MainActivity : ComponentActivity() {
                                     val canAdd = timeSignatures.size < 4
                                     Box(
                                         modifier = Modifier
-                                            .padding(horizontal = 2.dp, vertical = 32.dp)
+                                            .padding(start = 2.dp, end = 2.dp, top = 80.dp)
                                             .alpha(if (canAdd) 1f else 0.3f)
                                             .shadow(2.dp, RoundedCornerShape(5))
                                             .size(20.dp)
@@ -369,12 +404,38 @@ class MainActivity : ComponentActivity() {
                                             )
                                         }
                                     }
+                                    Column(
+                                        modifier = Modifier.padding(top = 8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        ts.numerator.let { num ->
+                                            repeat(num) { i ->
+                                                val startTime = beatTimings.getOrNull(index)?.getOrNull(i) ?: 0f
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(16.dp)
+                                                            .border(1.dp, Color.Black)
+                                                    )
+                                                    Text(
+                                                        text = String.format(Locale.US, "%.2fs", startTime),
+                                                        fontSize = 10.sp,
+                                                        color = Color.Black
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                             if (timeSignatures.size < 4) {
                                 Box(
                                     modifier = Modifier
-                                        .padding(start = 4.dp, end = 32.dp, bottom = 32.dp)
+                                        .padding(start = 4.dp, end = 32.dp, top = 80.dp)
                                         .shadow(2.dp, RoundedCornerShape(5))
                                         .size(20.dp)
                                         .background(Color.Gray, RoundedCornerShape(5))
