@@ -5,7 +5,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,6 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -49,6 +52,7 @@ class MainActivity : ComponentActivity() {
                 var tempoUnits by remember { mutableFloatStateOf(180f) } // 120 BPM = 180 units
                 var circleCenter by remember { mutableStateOf(Offset.Zero) }
                 var boxLayoutCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
+                var isOn by remember { mutableStateOf(false) }
 
                 val bpm by remember {
                     derivedStateOf {
@@ -105,6 +109,8 @@ class MainActivity : ComponentActivity() {
                             )
                             CircleDisplay(
                                 bpm = bpm,
+                                isOn = isOn,
+                                onToggle = { isOn = !isOn },
                                 modifier = Modifier.onGloballyPositioned { coords ->
                                     boxLayoutCoordinates?.let { boxCoords ->
                                         // Calculate center relative to the parent Box
@@ -124,7 +130,12 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun CircleDisplay(bpm: Float, modifier: Modifier = Modifier) {
+fun CircleDisplay(
+    bpm: Float,
+    isOn: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     val minBpm = 30f
     val maxBpm = 220f
     val startAngle = 120f // 30 degrees clockwise of straight down (90 + 30)
@@ -133,13 +144,17 @@ fun CircleDisplay(bpm: Float, modifier: Modifier = Modifier) {
     val currentAngle = startAngle + ratio * sweepAngle
 
     Box(
-        modifier = modifier.size(200.dp),
+        modifier = modifier
+            .size(200.dp)
+            .clip(CircleShape)
+            .clickable { onToggle() },
         contentAlignment = Alignment.Center
     ) {
         // Concentric borders: thin white outside, thick black inside
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .background(if (isOn) Color.White else Color.Transparent, CircleShape)
                 .border(width = 2.dp, color = Color.White, shape = CircleShape)
                 .padding(2.dp)
                 .border(width = 8.dp, color = Color.Black, shape = CircleShape)
@@ -175,6 +190,6 @@ fun CircleDisplay(bpm: Float, modifier: Modifier = Modifier) {
 @Composable
 fun GreetingPreview() {
     MixedMeterTheme {
-        CircleDisplay(bpm = 120f)
+        CircleDisplay(bpm = 120f, isOn = false, onToggle = {})
     }
 }
