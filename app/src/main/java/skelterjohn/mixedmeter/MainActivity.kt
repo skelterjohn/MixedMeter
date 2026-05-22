@@ -58,6 +58,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -506,7 +507,12 @@ fun TimeSignatureSelector(
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             modifier = Modifier
                 .width(IntrinsicSize.Min)
-                .widthIn(min = 40.dp),
+                .widthIn(min = 40.dp)
+                .onFocusChanged {
+                    if (it.isFocused) {
+                        onNumeratorChange(0)
+                    }
+                },
             decorationBox = { innerTextField ->
                 Box(contentAlignment = Alignment.Center) {
                     if (numerator == 0) {
