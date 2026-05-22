@@ -96,6 +96,13 @@ private val TIME_SIGNATURES_KEY = stringPreferencesKey("time_signatures")
 
 data class TimeSignature(val numerator: Int, val denominator: Int)
 
+private data class BeatBoxTiming(
+    val sectionIndex: Int,
+    val beatIndex: Int,
+    val startTime: Float,
+    val duration: Float,
+)
+
 private fun calculateBpm(tempoUnits: Float): Float {
     val interval = (tempoUnits / 10f).toInt()
     val remainder = tempoUnits % 10f
@@ -120,6 +127,7 @@ class MainActivity : ComponentActivity() {
                 var boxLayoutCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
                 var isOn by remember { mutableStateOf(false) }
                 var beatProgress by remember { mutableFloatStateOf(0f) }
+                var playbackPosition by remember { mutableFloatStateOf(0f) }
                 var isLoaded by remember { mutableStateOf(false) }
 
                 val bpm by remember {
@@ -184,46 +192,6 @@ class MainActivity : ComponentActivity() {
                         .map { preferences -> preferences[TONE_KEY] ?: "bip" }
                 }.collectAsState(initial = "bip")
 
-                LaunchedEffect(isOn, toneSetting, bpm) {
-                    if (isOn) {
-                        Log.d("MixedMeter", "Starting metronome with tone: $toneSetting")
-                        val toneGenerator = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
-                        val toneType = if (toneSetting == "beep") {
-                            ToneGenerator.TONE_PROP_BEEP
-                        } else {
-                            ToneGenerator.TONE_CDMA_PIP
-                        }
-
-                        try {
-                            var beatStartTimeNanos = -1L
-
-                            while (true) {
-                                withFrameNanos { frameTimeNanos ->
-                                    if (beatStartTimeNanos == -1L) {
-                                        beatStartTimeNanos = frameTimeNanos
-                                        toneGenerator.startTone(toneType, 30)
-                                    }
-
-                                    val currentDurationNanos = (60_000_000_000f / bpm).toLong()
-                                    var elapsed = frameTimeNanos - beatStartTimeNanos
-
-                                    while (elapsed >= currentDurationNanos) {
-                                        beatStartTimeNanos += currentDurationNanos
-                                        elapsed = frameTimeNanos - beatStartTimeNanos
-                                        toneGenerator.startTone(toneType, 30)
-                                    }
-
-                                    beatProgress = (elapsed.toFloat() / currentDurationNanos).coerceIn(0f, 1f)
-                                }
-                            }
-                        } finally {
-                            toneGenerator.release()
-                        }
-                    } else {
-                        beatProgress = 0f
-                    }
-                }
-
                 val selectedNoteValue by remember {
                     derivedStateOf {
                         when (selectedNote) {
@@ -239,22 +207,94 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                val beatTimings by remember {
+                val beatBoxSchedule by remember {
                     derivedStateOf {
-                        val timings = mutableListOf<List<Float>>()
+                        val boxes = mutableListOf<BeatBoxTiming>()
                         var currentTime = 0f
                         val secondsPerBeat = 60f / bpm
-                        
-                        timeSignatures.forEach { ts ->
-                            val sectionTimings = mutableListOf<Float>()
-                            val boxDuration = if (ts.denominator == 0) 0f else secondsPerBeat * ((1f / ts.denominator) / selectedNoteValue)
-                            repeat(ts.numerator) {
-                                sectionTimings.add(currentTime)
+
+                        timeSignatures.forEachIndexed { sectionIndex, ts ->
+                            val boxDuration = if (ts.denominator == 0) {
+                                0f
+                            } else {
+                                secondsPerBeat * ((1f / ts.denominator) / selectedNoteValue)
+                            }
+                            repeat(ts.numerator) { beatIndex ->
+                                boxes.add(
+                                    BeatBoxTiming(
+                                        sectionIndex = sectionIndex,
+                                        beatIndex = beatIndex,
+                                        startTime = currentTime,
+                                        duration = boxDuration,
+                                    )
+                                )
                                 currentTime += boxDuration
                             }
-                            timings.add(sectionTimings)
                         }
-                        timings
+                        boxes to currentTime
+                    }
+                }
+
+                val activeBeatBox by remember {
+                    derivedStateOf {
+                        if (!isOn) return@derivedStateOf null
+                        val (boxes, totalDuration) = beatBoxSchedule
+                        if (totalDuration <= 0f) return@derivedStateOf null
+                        val position = playbackPosition % totalDuration
+                        boxes.firstOrNull { box ->
+                            position >= box.startTime && position < box.startTime + box.duration
+                        }
+                    }
+                }
+
+                LaunchedEffect(isOn, toneSetting, bpm, timeSignatures, selectedNote) {
+                    if (isOn) {
+                        Log.d("MixedMeter", "Starting metronome with tone: $toneSetting")
+                        val toneGenerator = ToneGenerator(AudioManager.STREAM_MUSIC, 100)
+                        val toneType = if (toneSetting == "beep") {
+                            ToneGenerator.TONE_PROP_BEEP
+                        } else {
+                            ToneGenerator.TONE_CDMA_PIP
+                        }
+
+                        try {
+                            var beatStartTimeNanos = -1L
+                            var cycleStartTimeNanos = -1L
+
+                            while (true) {
+                                withFrameNanos { frameTimeNanos ->
+                                    if (beatStartTimeNanos == -1L) {
+                                        beatStartTimeNanos = frameTimeNanos
+                                        cycleStartTimeNanos = frameTimeNanos
+                                        toneGenerator.startTone(toneType, 30)
+                                    }
+
+                                    val currentDurationNanos = (60_000_000_000f / bpm).toLong()
+                                    var elapsed = frameTimeNanos - beatStartTimeNanos
+
+                                    while (elapsed >= currentDurationNanos) {
+                                        beatStartTimeNanos += currentDurationNanos
+                                        elapsed = frameTimeNanos - beatStartTimeNanos
+                                        toneGenerator.startTone(toneType, 30)
+                                    }
+
+                                    beatProgress = (elapsed.toFloat() / currentDurationNanos).coerceIn(0f, 1f)
+
+                                    val (_, totalCycleDuration) = beatBoxSchedule
+                                    if (totalCycleDuration > 0f && cycleStartTimeNanos >= 0L) {
+                                        val cycleElapsedSeconds =
+                                            (frameTimeNanos - cycleStartTimeNanos) / 1_000_000_000f
+                                        playbackPosition =
+                                            cycleElapsedSeconds % totalCycleDuration
+                                    }
+                                }
+                            }
+                        } finally {
+                            toneGenerator.release()
+                        }
+                    } else {
+                        beatProgress = 0f
+                        playbackPosition = 0f
                     }
                 }
 
@@ -411,7 +451,11 @@ class MainActivity : ComponentActivity() {
                                     ) {
                                         ts.numerator.let { num ->
                                             repeat(num) { i ->
-                                                val startTime = beatTimings.getOrNull(index)?.getOrNull(i) ?: 0f
+                                                val startTime = beatBoxSchedule.first
+                                                    .firstOrNull { it.sectionIndex == index && it.beatIndex == i }
+                                                    ?.startTime ?: 0f
+                                                val isActive = activeBeatBox?.sectionIndex == index &&
+                                                    activeBeatBox?.beatIndex == i
                                                 Row(
                                                     verticalAlignment = Alignment.CenterVertically,
                                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -419,6 +463,9 @@ class MainActivity : ComponentActivity() {
                                                     Box(
                                                         modifier = Modifier
                                                             .size(16.dp)
+                                                            .background(
+                                                                if (isActive) Color.White else Color.Transparent
+                                                            )
                                                             .border(1.dp, Color.Black)
                                                     )
                                                     Text(
