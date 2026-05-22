@@ -126,7 +126,6 @@ class MainActivity : ComponentActivity() {
                 var circleCenter by remember { mutableStateOf(Offset.Zero) }
                 var boxLayoutCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
                 var isOn by remember { mutableStateOf(false) }
-                var beatProgress by remember { mutableFloatStateOf(0f) }
                 var playbackPosition by remember { mutableFloatStateOf(0f) }
                 var isLoaded by remember { mutableStateOf(false) }
 
@@ -247,6 +246,16 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                val activeBoxProgress by remember {
+                    derivedStateOf {
+                        val box = activeBeatBox ?: return@derivedStateOf 0f
+                        if (box.duration <= 0f) return@derivedStateOf 0f
+                        val (_, totalDuration) = beatBoxSchedule
+                        val position = playbackPosition % totalDuration
+                        ((position - box.startTime) / box.duration).coerceIn(0f, 1f)
+                    }
+                }
+
                 LaunchedEffect(isOn, toneSetting, bpm, timeSignatures, selectedNote) {
                     if (isOn) {
                         Log.d("MixedMeter", "Starting metronome with tone: $toneSetting")
@@ -258,34 +267,33 @@ class MainActivity : ComponentActivity() {
                         }
 
                         try {
-                            var beatStartTimeNanos = -1L
                             var cycleStartTimeNanos = -1L
+                            var lastClickedBeat: Pair<Int, Int>? = null
 
                             while (true) {
                                 withFrameNanos { frameTimeNanos ->
-                                    if (beatStartTimeNanos == -1L) {
-                                        beatStartTimeNanos = frameTimeNanos
+                                    if (cycleStartTimeNanos < 0L) {
                                         cycleStartTimeNanos = frameTimeNanos
-                                        toneGenerator.startTone(toneType, 30)
                                     }
 
-                                    val currentDurationNanos = (60_000_000_000f / bpm).toLong()
-                                    var elapsed = frameTimeNanos - beatStartTimeNanos
-
-                                    while (elapsed >= currentDurationNanos) {
-                                        beatStartTimeNanos += currentDurationNanos
-                                        elapsed = frameTimeNanos - beatStartTimeNanos
-                                        toneGenerator.startTone(toneType, 30)
-                                    }
-
-                                    beatProgress = (elapsed.toFloat() / currentDurationNanos).coerceIn(0f, 1f)
-
-                                    val (_, totalCycleDuration) = beatBoxSchedule
-                                    if (totalCycleDuration > 0f && cycleStartTimeNanos >= 0L) {
+                                    val (boxes, totalCycleDuration) = beatBoxSchedule
+                                    if (totalCycleDuration > 0f) {
                                         val cycleElapsedSeconds =
                                             (frameTimeNanos - cycleStartTimeNanos) / 1_000_000_000f
                                         playbackPosition =
                                             cycleElapsedSeconds % totalCycleDuration
+
+                                        val active = boxes.firstOrNull { box ->
+                                            playbackPosition >= box.startTime &&
+                                                playbackPosition < box.startTime + box.duration
+                                        }
+                                        if (active != null && active.duration > 0f) {
+                                            val beatKey = active.sectionIndex to active.beatIndex
+                                            if (beatKey != lastClickedBeat) {
+                                                toneGenerator.startTone(toneType, 30)
+                                                lastClickedBeat = beatKey
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -293,7 +301,6 @@ class MainActivity : ComponentActivity() {
                             toneGenerator.release()
                         }
                     } else {
-                        beatProgress = 0f
                         playbackPosition = 0f
                     }
                 }
@@ -549,7 +556,7 @@ class MainActivity : ComponentActivity() {
                             CircleDisplay(
                                 bpm = bpm,
                                 isOn = isOn,
-                                beatProgress = beatProgress,
+                                beatProgress = activeBoxProgress,
                                 onToggle = {
                                     if (!isOn) {
                                         committedBpm = bpm
@@ -714,7 +721,7 @@ fun CircleDisplay(
             val innerRadius = size.width / 2 - 12.dp.toPx()
             
             if (isOn) {
-                // Background starts white at the beginning of each beat
+                // Background starts white at the beginning of each active beat box
                 drawCircle(
                     color = Color.White,
                     radius = innerRadius,
