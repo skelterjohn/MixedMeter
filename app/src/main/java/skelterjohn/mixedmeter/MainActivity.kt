@@ -55,6 +55,7 @@ class MainActivity : ComponentActivity() {
                 var circleCenter by remember { mutableStateOf(Offset.Zero) }
                 var boxLayoutCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
                 var isOn by remember { mutableStateOf(false) }
+                var isDragging by remember { mutableStateOf(false) }
                 var beatProgress by remember { mutableFloatStateOf(0f) }
 
                 val bpm by remember {
@@ -69,16 +70,31 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
+                
+                var committedBpm by remember { mutableFloatStateOf(bpm) }
+                var pulsingBpm by remember { mutableFloatStateOf(bpm) }
 
-                LaunchedEffect(isOn, bpm) {
+                LaunchedEffect(isOn) {
                     if (isOn) {
-                        var startTimeNanos = -1L
+                        var beatStartTimeNanos = -1L
                         while (true) {
                             withFrameNanos { frameTimeNanos ->
-                                if (startTimeNanos == -1L) startTimeNanos = frameTimeNanos
-                                val beatDurationNanos = (60_000_000_000f / bpm).toLong()
-                                val elapsed = frameTimeNanos - startTimeNanos
-                                beatProgress = (elapsed % beatDurationNanos) / beatDurationNanos.toFloat()
+                                if (beatStartTimeNanos == -1L) {
+                                    beatStartTimeNanos = frameTimeNanos
+                                    pulsingBpm = committedBpm
+                                }
+
+                                var currentDurationNanos = (60_000_000_000f / pulsingBpm).toLong()
+                                var elapsed = frameTimeNanos - beatStartTimeNanos
+
+                                while (elapsed >= currentDurationNanos) {
+                                    beatStartTimeNanos += currentDurationNanos
+                                    pulsingBpm = committedBpm
+                                    currentDurationNanos = (60_000_000_000f / pulsingBpm).toLong()
+                                    elapsed = frameTimeNanos - beatStartTimeNanos
+                                }
+
+                                beatProgress = (elapsed.toFloat() / currentDurationNanos).coerceIn(0f, 1f)
                             }
                         }
                     } else {
@@ -96,18 +112,33 @@ class MainActivity : ComponentActivity() {
                             .padding(innerPadding)
                             .onGloballyPositioned { boxLayoutCoordinates = it }
                             .pointerInput(Unit) {
-                                detectDragGestures { change, dragAmount ->
-                                    change.consume()
+                                detectDragGestures(
+                                    onDragStart = { isDragging = true },
+                                    onDragEnd = {
+                                        isDragging = false
+                                        committedBpm = bpm
+                                    },
+                                    onDragCancel = {
+                                        isDragging = false
+                                        committedBpm = bpm
+                                    },
+                                    onDrag = { change, dragAmount ->
+                                        change.consume()
 
-                                    // Vector from center to current touch
-                                    val dx = change.position.x - circleCenter.x
-                                    val dy = change.position.y - circleCenter.y
-                                    val distance = sqrt(dx * dx + dy * dy).coerceAtLeast(100f)
+                                        // Vector from center to current touch
+                                        val dx = change.position.x - circleCenter.x
+                                        val dy = change.position.y - circleCenter.y
+                                        val distance = sqrt(dx * dx + dy * dy).coerceAtLeast(100f)
 
-                                    val sensitivity = 150f / distance
-                                    val delta = dragAmount.x - dragAmount.y
-                                    tempoUnits = (tempoUnits + delta * sensitivity).coerceIn(0f, 380f)
-                                }
+                                        val sensitivity = 150f / distance
+                                        val delta = dragAmount.x - dragAmount.y
+                                        tempoUnits = (tempoUnits + delta * sensitivity).coerceIn(0f, 380f)
+                                        
+                                        if (!isOn) {
+                                            committedBpm = bpm
+                                        }
+                                    }
+                                )
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -124,9 +155,15 @@ class MainActivity : ComponentActivity() {
                             )
                             CircleDisplay(
                                 bpm = bpm,
+                                pulsingBpm = pulsingBpm,
                                 isOn = isOn,
                                 beatProgress = beatProgress,
-                                onToggle = { isOn = !isOn },
+                                onToggle = {
+                                    if (!isOn) {
+                                        committedBpm = bpm
+                                    }
+                                    isOn = !isOn
+                                },
                                 modifier = Modifier.onGloballyPositioned { coords ->
                                     boxLayoutCoordinates?.let { boxCoords ->
                                         // Calculate center relative to the parent Box
@@ -148,6 +185,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun CircleDisplay(
     bpm: Float,
+    pulsingBpm: Float,
     isOn: Boolean,
     beatProgress: Float,
     onToggle: () -> Unit,
@@ -159,6 +197,9 @@ fun CircleDisplay(
     val sweepAngle = 300f // Full rotation minus the 60 degree gap at the bottom
     val ratio = ((bpm - minBpm) / (maxBpm - minBpm)).coerceIn(0f, 1f)
     val currentAngle = startAngle + ratio * sweepAngle
+
+    val pulsingRatio = ((pulsingBpm - minBpm) / (maxBpm - minBpm)).coerceIn(0f, 1f)
+    val pulsingAngle = startAngle + pulsingRatio * sweepAngle
 
     Box(
         modifier = modifier
@@ -190,7 +231,7 @@ fun CircleDisplay(
                 // Grey sweep covers the white clockwise
                 drawArc(
                     color = Color.Gray,
-                    startAngle = currentAngle,
+                    startAngle = pulsingAngle,
                     sweepAngle = 360f * beatProgress,
                     useCenter = true,
                     topLeft = Offset(center.x - innerRadius, center.y - innerRadius),
@@ -233,6 +274,6 @@ fun CircleDisplay(
 @Composable
 fun GreetingPreview() {
     MixedMeterTheme {
-        CircleDisplay(bpm = 120f, isOn = false, beatProgress = 0f, onToggle = {})
+        CircleDisplay(bpm = 120f, pulsingBpm = 120f, isOn = false, beatProgress = 0f, onToggle = {})
     }
 }
