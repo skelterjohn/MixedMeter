@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
@@ -96,6 +98,10 @@ class MainActivity : ComponentActivity() {
                 val bpm by remember {
                     derivedStateOf { calculateBpm(tempoUnits) }
                 }
+
+                var noteDropdownExpanded by remember { mutableStateOf(false) }
+                val noteOptions = remember { listOf("♪", "♪.", "♩", "♩.", "𝅗𝅥", "𝅗𝅥.", "𝅝") }
+                var selectedNote by remember { mutableStateOf("♩") }
                 
                 var committedBpm by remember { mutableFloatStateOf(bpm) }
                 var pulsingBpm by remember { mutableFloatStateOf(bpm) }
@@ -217,12 +223,29 @@ class MainActivity : ComponentActivity() {
                                     fontSize = 48.sp,
                                     fontWeight = FontWeight.Bold
                                 )
-                                Text(
-                                    text = " = ♩",
-                                    color = Color.Black,
-                                    fontSize = 48.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                Box {
+                                    Text(
+                                        text = " = $selectedNote",
+                                        color = Color.Black,
+                                        fontSize = 48.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.clickable { noteDropdownExpanded = true }
+                                    )
+                                    DropdownMenu(
+                                        expanded = noteDropdownExpanded,
+                                        onDismissRequest = { noteDropdownExpanded = false }
+                                    ) {
+                                        noteOptions.forEach { note ->
+                                            DropdownMenuItem(
+                                                text = { Text(note, fontSize = 32.sp) },
+                                                onClick = {
+                                                    selectedNote = note
+                                                    noteDropdownExpanded = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
                             }
                             CircleDisplay(
                                 bpm = bpm,
