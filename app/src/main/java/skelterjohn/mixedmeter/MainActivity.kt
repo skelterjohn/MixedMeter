@@ -69,6 +69,7 @@ import kotlin.math.sqrt
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 private val TEMPO_UNITS_KEY = floatPreferencesKey("tempo_units")
 val TONE_KEY = stringPreferencesKey("tone_setting")
+private val SELECTED_NOTE_KEY = stringPreferencesKey("selected_note")
 
 private fun calculateBpm(tempoUnits: Float): Float {
     val interval = (tempoUnits / 10f).toInt()
@@ -107,11 +108,15 @@ class MainActivity : ComponentActivity() {
                 var pulsingBpm by remember { mutableFloatStateOf(bpm) }
 
                 LaunchedEffect(Unit) {
-                    context.dataStore.data.first()[TEMPO_UNITS_KEY]?.let { savedUnits ->
+                    val preferences = context.dataStore.data.first()
+                    preferences[TEMPO_UNITS_KEY]?.let { savedUnits ->
                         tempoUnits = savedUnits
                         val loadedBpm = calculateBpm(savedUnits)
                         committedBpm = loadedBpm
                         pulsingBpm = loadedBpm
+                    }
+                    preferences[SELECTED_NOTE_KEY]?.let { savedNote ->
+                        selectedNote = savedNote
                     }
                     isLoaded = true
                 }
@@ -120,6 +125,14 @@ class MainActivity : ComponentActivity() {
                     if (isLoaded) {
                         context.dataStore.edit { settings ->
                             settings[TEMPO_UNITS_KEY] = tempoUnits
+                        }
+                    }
+                }
+
+                LaunchedEffect(selectedNote) {
+                    if (isLoaded) {
+                        context.dataStore.edit { settings ->
+                            settings[SELECTED_NOTE_KEY] = selectedNote
                         }
                     }
                 }
