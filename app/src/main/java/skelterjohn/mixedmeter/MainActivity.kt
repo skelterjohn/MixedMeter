@@ -466,9 +466,9 @@ class MainActivity : ComponentActivity() {
                                                             .weight(1f)
                                                             .fillMaxSize()
                                                             .background(
-                                                                if (isActive) Color.White else Color.Transparent,
+                                                                if (isActive) Color.White else Color.Black,
                                                             )
-                                                            .border(1.dp, Color.Black),
+                                                            .border(1.dp, Color.White),
                                                     )
                                                 }
                                             }
