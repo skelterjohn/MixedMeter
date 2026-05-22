@@ -19,12 +19,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,6 +55,7 @@ class MainActivity : ComponentActivity() {
                 var circleCenter by remember { mutableStateOf(Offset.Zero) }
                 var boxLayoutCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
                 var isOn by remember { mutableStateOf(false) }
+                var beatProgress by remember { mutableFloatStateOf(0f) }
 
                 val bpm by remember {
                     derivedStateOf {
@@ -64,6 +67,22 @@ class MainActivity : ComponentActivity() {
                         } else {
                             baseBpm + (remainder - 5f)
                         }
+                    }
+                }
+
+                LaunchedEffect(isOn, bpm) {
+                    if (isOn) {
+                        var startTimeNanos = -1L
+                        while (true) {
+                            withFrameNanos { frameTimeNanos ->
+                                if (startTimeNanos == -1L) startTimeNanos = frameTimeNanos
+                                val beatDurationNanos = (60_000_000_000f / bpm).toLong()
+                                val elapsed = frameTimeNanos - startTimeNanos
+                                beatProgress = (elapsed % beatDurationNanos) / beatDurationNanos.toFloat()
+                            }
+                        }
+                    } else {
+                        beatProgress = 0f
                     }
                 }
 
@@ -85,10 +104,6 @@ class MainActivity : ComponentActivity() {
                                     val dy = change.position.y - circleCenter.y
                                     val distance = sqrt(dx * dx + dy * dy).coerceAtLeast(100f)
 
-                                    // Dragging up (negative dy) or right (positive dx) increases tempo.
-                                    // Dragging down (positive dy) or left (negative dx) decreases tempo.
-                                    // Sensitivity is inversely proportional to distance.
-                                    // K = 150f is a scaling factor.
                                     val sensitivity = 150f / distance
                                     val delta = dragAmount.x - dragAmount.y
                                     tempoUnits = (tempoUnits + delta * sensitivity).coerceIn(0f, 380f)
@@ -110,6 +125,7 @@ class MainActivity : ComponentActivity() {
                             CircleDisplay(
                                 bpm = bpm,
                                 isOn = isOn,
+                                beatProgress = beatProgress,
                                 onToggle = { isOn = !isOn },
                                 modifier = Modifier.onGloballyPositioned { coords ->
                                     boxLayoutCoordinates?.let { boxCoords ->
@@ -133,6 +149,7 @@ class MainActivity : ComponentActivity() {
 fun CircleDisplay(
     bpm: Float,
     isOn: Boolean,
+    beatProgress: Float,
     onToggle: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -154,13 +171,40 @@ fun CircleDisplay(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(if (isOn) Color.White else Color.Transparent, CircleShape)
                 .border(width = 2.dp, color = Color.White, shape = CircleShape)
                 .padding(2.dp)
                 .border(width = 8.dp, color = Color.Black, shape = CircleShape)
         )
-        // Indicator line
+        // Indicator line and tempo animation
         Canvas(modifier = Modifier.fillMaxSize()) {
+            val innerRadius = size.width / 2 - 12.dp.toPx()
+            
+            if (isOn) {
+                // Background starts white at the beginning of each beat
+                drawCircle(
+                    color = Color.White,
+                    radius = innerRadius,
+                    center = center
+                )
+                
+                // Grey sweep covers the white clockwise
+                drawArc(
+                    color = Color.Gray,
+                    startAngle = currentAngle,
+                    sweepAngle = 360f * beatProgress,
+                    useCenter = true,
+                    topLeft = Offset(center.x - innerRadius, center.y - innerRadius),
+                    size = Size(innerRadius * 2, innerRadius * 2)
+                )
+            } else {
+                // Solid grey when off
+                drawCircle(
+                    color = Color.Gray,
+                    radius = innerRadius,
+                    center = center
+                )
+            }
+
             // Faint track for the dial
             drawArc(
                 color = Color.White.copy(alpha = 0.1f),
@@ -172,8 +216,7 @@ fun CircleDisplay(
                 size = Size(size.width - 24.dp.toPx(), size.height - 24.dp.toPx())
             )
 
-            // Rotate the line to the current angle. 
-            // The line is drawn pointing straight up (270 deg), so we rotate by (currentAngle - 270).
+            // Indicator line
             rotate(degrees = currentAngle - 270f) {
                 drawLine(
                     color = Color.White,
@@ -190,6 +233,6 @@ fun CircleDisplay(
 @Composable
 fun GreetingPreview() {
     MixedMeterTheme {
-        CircleDisplay(bpm = 120f, isOn = false, onToggle = {})
+        CircleDisplay(bpm = 120f, isOn = false, beatProgress = 0f, onToggle = {})
     }
 }
