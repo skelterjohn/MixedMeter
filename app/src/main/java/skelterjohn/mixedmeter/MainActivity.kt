@@ -17,6 +17,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -45,9 +48,22 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             MixedMeterTheme {
-                var bpm by remember { mutableFloatStateOf(120f) }
+                var tempoUnits by remember { mutableFloatStateOf(180f) } // 120 BPM = 180 units
                 var circleCenter by remember { mutableStateOf(Offset.Zero) }
                 var boxLayoutCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
+
+                val bpm by remember {
+                    derivedStateOf {
+                        val interval = (tempoUnits / 10f).toInt()
+                        val remainder = tempoUnits % 10f
+                        val baseBpm = 30 + interval * 5
+                        if (remainder < 6f) {
+                            baseBpm.toFloat()
+                        } else {
+                            baseBpm + (remainder - 5f)
+                        }
+                    }
+                }
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
@@ -73,7 +89,7 @@ class MainActivity : ComponentActivity() {
                                     // K = 150f is a scaling factor.
                                     val sensitivity = 150f / distance
                                     val delta = dragAmount.x - dragAmount.y
-                                    bpm = (bpm + delta * sensitivity).coerceIn(30f, 220f)
+                                    tempoUnits = (tempoUnits + delta * sensitivity).coerceIn(0f, 380f)
                                 }
                             },
                         contentAlignment = Alignment.Center
