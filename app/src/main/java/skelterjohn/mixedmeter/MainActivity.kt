@@ -25,6 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
@@ -64,21 +65,15 @@ class MainActivity : ComponentActivity() {
                                     // Vector from center to current touch
                                     val dx = change.position.x - circleCenter.x
                                     val dy = change.position.y - circleCenter.y
-                                    val distance = sqrt(dx * dx + dy * dy).coerceAtLeast(10f)
+                                    val distance = sqrt(dx * dx + dy * dy).coerceAtLeast(100f)
 
-                                    // Unit vector pointing away from center
-                                    val ux = dx / distance
-                                    val uy = dy / distance
-
-                                    // Project dragAmount onto the radial unit vector
-                                    // Positive means moving away (increase BPM), negative means moving towards (decrease BPM)
-                                    val radialMovement = dragAmount.x * ux + dragAmount.y * uy
-
+                                    // Dragging up (negative dy) or right (positive dx) increases tempo.
+                                    // Dragging down (positive dy) or left (negative dx) decreases tempo.
                                     // Sensitivity is inversely proportional to distance.
-                                    // K = 150f is a scaling factor; at 150px distance, 1px of radial movement = 1 BPM change.
+                                    // K = 150f is a scaling factor.
                                     val sensitivity = 150f / distance
-
-                                    bpm = (bpm + radialMovement * sensitivity).coerceIn(30f, 300f)
+                                    val delta = dragAmount.x - dragAmount.y
+                                    bpm = (bpm + delta * sensitivity).coerceIn(30f, 220f)
                                 }
                             },
                         contentAlignment = Alignment.Center
@@ -98,7 +93,7 @@ class MainActivity : ComponentActivity() {
                                 bpm = bpm,
                                 modifier = Modifier.onGloballyPositioned { coords ->
                                     boxLayoutCoordinates?.let { boxCoords ->
-                                        // Calculate center relative to the parent Box for coordinate consistency
+                                        // Calculate center relative to the parent Box
                                         circleCenter = boxCoords.localPositionOf(
                                             coords,
                                             Offset(coords.size.width / 2f, coords.size.height / 2f)
@@ -117,7 +112,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun CircleDisplay(bpm: Float, modifier: Modifier = Modifier) {
     val minBpm = 30f
-    val maxBpm = 300f
+    val maxBpm = 220f
     val startAngle = 120f // 30 degrees clockwise of straight down (90 + 30)
     val sweepAngle = 300f // Full rotation minus the 60 degree gap at the bottom
     val ratio = ((bpm - minBpm) / (maxBpm - minBpm)).coerceIn(0f, 1f)
@@ -136,14 +131,16 @@ fun CircleDisplay(bpm: Float, modifier: Modifier = Modifier) {
                 .border(width = 8.dp, color = Color.Black, shape = CircleShape)
         )
         // Indicator line
-        Canvas(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
             // Faint track for the dial
             drawArc(
                 color = Color.White.copy(alpha = 0.1f),
                 startAngle = startAngle,
                 sweepAngle = sweepAngle,
                 useCenter = false,
-                style = Stroke(width = 2.dp.toPx())
+                style = Stroke(width = 2.dp.toPx()),
+                topLeft = Offset(12.dp.toPx(), 12.dp.toPx()),
+                size = Size(size.width - 24.dp.toPx(), size.height - 24.dp.toPx())
             )
 
             // Rotate the line to the current angle. 
@@ -152,7 +149,7 @@ fun CircleDisplay(bpm: Float, modifier: Modifier = Modifier) {
                 drawLine(
                     color = Color.White,
                     start = center,
-                    end = Offset(x = size.width / 2, y = 0f),
+                    end = Offset(x = size.width / 2, y = -2.dp.toPx()),
                     strokeWidth = 8.dp.toPx()
                 )
             }
