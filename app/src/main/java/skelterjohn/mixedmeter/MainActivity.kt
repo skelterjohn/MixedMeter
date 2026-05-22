@@ -14,6 +14,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -34,6 +35,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -73,8 +75,11 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -299,11 +304,15 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     containerColor = Color.Gray
                 ) { innerPadding ->
+                    val focusManager = LocalFocusManager.current
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(innerPadding)
                             .onGloballyPositioned { boxLayoutCoordinates = it }
+                            .pointerInput(Unit) {
+                                detectTapGestures(onTap = { focusManager.clearFocus() })
+                            }
                             .pointerInput(Unit) {
                                 detectDragGestures(
                                     onDragStart = { },
@@ -717,7 +726,23 @@ fun TimeSignatureSelector(
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
+    var isNumeratorFocused by remember { mutableStateOf(false) }
+    var numeratorEditText by remember { mutableStateOf("") }
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     val denominatorOptions = listOf(1, 2, 4, 8, 16, 32)
+
+    fun finishNumeratorEdit() {
+        keyboardController?.hide()
+        focusManager.clearFocus()
+    }
+
+    val numeratorFieldValue = if (isNumeratorFocused) {
+        numeratorEditText
+    } else {
+        numerator.toString()
+    }
+    val showNumeratorPlaceholder = isNumeratorFocused && numeratorEditText.isEmpty()
 
     Column(
         modifier = modifier,
@@ -726,31 +751,47 @@ fun TimeSignatureSelector(
     ) {
         // Numerator
         BasicTextField(
-            value = if (numerator == 0) "" else numerator.toString(),
-            onValueChange = {
-                val filtered = it.filter { char -> char.isDigit() }
+            value = numeratorFieldValue,
+            onValueChange = { newText ->
+                if (newText.contains('\n')) {
+                    finishNumeratorEdit()
+                    return@BasicTextField
+                }
+                val filtered = newText.filter { char -> char.isDigit() }
                 if (filtered.length <= 3) {
-                    onNumeratorChange(filtered.toIntOrNull() ?: 0)
+                    numeratorEditText = filtered
                 }
             },
+            singleLine = true,
             textStyle = TextStyle(
                 fontSize = 48.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
                 color = Color.Black
             ),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Number,
+                imeAction = ImeAction.Done,
+            ),
+            keyboardActions = KeyboardActions(
+                onDone = { finishNumeratorEdit() },
+            ),
             modifier = Modifier
                 .width(IntrinsicSize.Min)
                 .widthIn(min = 40.dp)
-                .onFocusChanged {
-                    if (it.isFocused) {
-                        onNumeratorChange(0)
+                .onFocusChanged { focusState ->
+                    if (focusState.isFocused) {
+                        isNumeratorFocused = true
+                        numeratorEditText = ""
+                    } else if (isNumeratorFocused) {
+                        isNumeratorFocused = false
+                        val parsed = numeratorEditText.toIntOrNull()?.takeIf { it in 1..999 }
+                        onNumeratorChange(parsed ?: numerator.coerceAtLeast(1))
                     }
                 },
             decorationBox = { innerTextField ->
                 Box(contentAlignment = Alignment.Center) {
-                    if (numerator == 0) {
+                    if (showNumeratorPlaceholder) {
                         Text(
                             text = "4",
                             style = TextStyle(
