@@ -99,6 +99,11 @@ import kotlinx.coroutines.flow.map
 import skelterjohn.mixedmeter.ui.theme.MixedMeterTheme
 import kotlin.math.sqrt
 
+private data class LoopPlayerSlot(
+    val player: MetronomeLoopPlayer,
+    val schedule: MetronomeClickSchedule,
+)
+
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 private val TEMPO_UNITS_KEY = floatPreferencesKey("tempo_units")
 val TONE_KEY = stringPreferencesKey("tone_setting")
@@ -227,9 +232,21 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                val loopPlayerHolder = remember { mutableStateOf<LoopPlayerSlot?>(null) }
+
+                val activeSchedule by remember {
+                    derivedStateOf {
+                        if (isOn) {
+                            loopPlayerHolder.value?.schedule ?: metronomeClickSchedule
+                        } else {
+                            metronomeClickSchedule
+                        }
+                    }
+                }
+
                 val beatBoxSchedule by remember {
                     derivedStateOf {
-                        val schedule = metronomeClickSchedule
+                        val schedule = activeSchedule
                         schedule.boxes to schedule.totalCycleNanos / 1_000_000_000f
                     }
                 }
@@ -251,7 +268,7 @@ class MainActivity : ComponentActivity() {
                         if (!isOn) return@derivedStateOf 0f
                         val (_, totalDuration) = beatBoxSchedule
                         if (totalDuration <= 0f) {
-                            val beatPeriod = 60f / committedBpm.coerceAtLeast(1f)
+                            val beatPeriod = activeSchedule.beatPeriodNanos / 1_000_000_000f
                             val inBeat = playbackPosition % beatPeriod
                             return@derivedStateOf (inBeat / beatPeriod).coerceIn(0f, 1f)
                         }
@@ -262,18 +279,97 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                val loopPlayerHolder = remember { mutableStateOf<MetronomeLoopPlayer?>(null) }
+                var previousTimeSignatures by remember {
+                    mutableStateOf<List<TimeSignature>?>(null)
+                }
+                var previousCommittedBpm by remember { mutableFloatStateOf(committedBpm) }
+                var previousSelectedNote by remember { mutableStateOf(selectedNote) }
+                var previousBeatTone by remember { mutableStateOf(beatToneSetting) }
+                var previousLeadTone by remember { mutableStateOf(leadToneSetting) }
 
-                // Pre-render and prime audio while idle so play can start immediately.
+                // Rebuild loop when meter/BPM/tone changes.
                 LaunchedEffect(
-                    metronomeClickSchedule,
+                    committedBpm,
+                    timeSignatures,
+                    selectedNote,
                     beatToneSetting,
                     leadToneSetting,
+                    isLoaded,
                 ) {
-                    loopPlayerHolder.value?.release()
-                    loopPlayerHolder.value = null
+                    if (!isLoaded) return@LaunchedEffect
+
+                    val timeSignaturesChanged = previousTimeSignatures != null &&
+                        previousTimeSignatures != timeSignatures
+                    previousTimeSignatures = timeSignatures.toList()
+
+                    if (timeSignaturesChanged && isOn) {
+                        loopPlayerHolder.value?.player?.stop()
+                        playbackPosition = 0f
+                        isOn = false
+                    }
+
+                    val bpmChanged = previousCommittedBpm != committedBpm
+                    val noteChanged = previousSelectedNote != selectedNote
+                    val beatToneChanged = previousBeatTone != beatToneSetting
+                    val leadToneChanged = previousLeadTone != leadToneSetting
+                    val onlyBpmChange = isOn && !timeSignaturesChanged && bpmChanged &&
+                        !noteChanged && !beatToneChanged && !leadToneChanged
+
                     val schedule = metronomeClickSchedule
-                    val player = withContext(Dispatchers.Default) {
+
+                    if (onlyBpmChange) {
+                        val existingSlot = loopPlayerHolder.value
+                        val oldSchedule = existingSlot?.schedule
+                        if (oldSchedule != null && existingSlot.player.isPlaying()) {
+                            val newPlayer = withContext(Dispatchers.Default) {
+                                val loop = MetronomeLoopRenderer.render(
+                                    schedule = schedule,
+                                    useBeepBeatTone = beatToneSetting == "beep",
+                                    useBeepLeadTone = leadToneSetting == "beep",
+                                )
+                                MetronomeLoopPlayer.create(context, loop)
+                            }
+
+                            val startPosition =
+                                loopPlayerHolder.value?.player?.cyclePositionSeconds() ?: 0f
+                            while (isActive && isOn) {
+                                val slot = loopPlayerHolder.value ?: break
+                                val position = slot.player.cyclePositionSeconds()
+                                if (hasCrossedBeatBoundary(startPosition, position, oldSchedule)) {
+                                    break
+                                }
+                                val remaining = remainingSecondsInCurrentBeat(position, oldSchedule)
+                                if (remaining <= 1e-4f) break
+                                delay((remaining * 400f).toLong().coerceIn(1L, 16L))
+                            }
+
+                            if (!isOn) {
+                                loopPlayerHolder.value?.player?.release()
+                                loopPlayerHolder.value = LoopPlayerSlot(newPlayer, schedule)
+                                previousCommittedBpm = committedBpm
+                                previousSelectedNote = selectedNote
+                                previousBeatTone = beatToneSetting
+                                previousLeadTone = leadToneSetting
+                                return@LaunchedEffect
+                            }
+
+                            loopPlayerHolder.value?.player?.release()
+                            loopPlayerHolder.value = LoopPlayerSlot(newPlayer, schedule)
+                            playbackPosition = 0f
+                            if (isOn) {
+                                newPlayer.start()
+                            }
+                            previousCommittedBpm = committedBpm
+                            previousSelectedNote = selectedNote
+                            previousBeatTone = beatToneSetting
+                            previousLeadTone = leadToneSetting
+                            return@LaunchedEffect
+                        }
+                    }
+
+                    val hotStart = isOn
+                    val oldPlayer = loopPlayerHolder.value?.player
+                    val newPlayer = withContext(Dispatchers.Default) {
                         val loop = MetronomeLoopRenderer.render(
                             schedule = schedule,
                             useBeepBeatTone = beatToneSetting == "beep",
@@ -281,12 +377,23 @@ class MainActivity : ComponentActivity() {
                         )
                         MetronomeLoopPlayer.create(context, loop)
                     }
-                    loopPlayerHolder.value = player
+                    oldPlayer?.release()
+                    loopPlayerHolder.value = LoopPlayerSlot(newPlayer, schedule)
+
+                    if (hotStart) {
+                        playbackPosition = 0f
+                        newPlayer.start()
+                    }
+
+                    previousCommittedBpm = committedBpm
+                    previousSelectedNote = selectedNote
+                    previousBeatTone = beatToneSetting
+                    previousLeadTone = leadToneSetting
                 }
 
                 LaunchedEffect(isOn) {
                     if (!isOn) {
-                        loopPlayerHolder.value?.stop()
+                        loopPlayerHolder.value?.player?.stop()
                         playbackPosition = 0f
                         return@LaunchedEffect
                     }
@@ -295,17 +402,16 @@ class MainActivity : ComponentActivity() {
                         delay(10)
                         attempts++
                     }
-                    val player = loopPlayerHolder.value ?: return@LaunchedEffect
+                    val player = loopPlayerHolder.value?.player
+                    if (player == null || !isOn) return@LaunchedEffect
                     playbackPosition = 0f
                     player.start()
-                    try {
-                        while (isActive) {
-                            withFrameNanos {
-                                playbackPosition = player.cyclePositionSeconds()
+                    while (isActive) {
+                        withFrameNanos {
+                            loopPlayerHolder.value?.player?.let { activePlayer ->
+                                playbackPosition = activePlayer.cyclePositionSeconds()
                             }
                         }
-                    } finally {
-                        player.stop()
                     }
                 }
 
@@ -317,7 +423,7 @@ class MainActivity : ComponentActivity() {
                     val circleRadiusPx = with(LocalDensity.current) { 100.dp.toPx() }
                     val toggleMetronome = {
                         if (isOn) {
-                            loopPlayerHolder.value?.stop()
+                            loopPlayerHolder.value?.player?.stop()
                             playbackPosition = 0f
                         } else {
                             committedBpm = bpm

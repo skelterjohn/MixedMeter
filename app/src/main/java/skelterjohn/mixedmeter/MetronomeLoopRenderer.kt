@@ -5,8 +5,6 @@ package skelterjohn.mixedmeter
  */
 object MetronomeLoopRenderer {
 
-    private const val MIN_PLAIN_CYCLE_NANOS = 500_000_000L // 0.5 s — keeps high-BPM loops loop-friendly
-
     data class MetronomeLoop(
         val samples: ShortArray,
         val cycleFrameCount: Int,
@@ -28,14 +26,7 @@ object MetronomeLoopRenderer {
         val hasTimeSignatures =
             schedule.totalCycleNanos > 0L && schedule.clickOffsetsNanos.isNotEmpty()
 
-        val cycleNanos = if (hasTimeSignatures) {
-            schedule.totalCycleNanos
-        } else {
-            val periodNanos = schedule.beatPeriodNanos
-            val beatCount = ((MIN_PLAIN_CYCLE_NANOS + periodNanos - 1) / periodNanos)
-                .coerceAtLeast(1)
-            beatCount * periodNanos
-        }
+        val cycleNanos = plainLoopCycleNanos(schedule)
 
         val cycleFrameCount = nanosToFrames(cycleNanos).coerceAtLeast(1)
         val buffer = ShortArray(cycleFrameCount)

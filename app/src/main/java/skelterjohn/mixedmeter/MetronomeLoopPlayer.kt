@@ -26,6 +26,7 @@ class MetronomeLoopPlayer private constructor(
         fun start()
         fun stop()
         fun release()
+        fun isPlaying(): Boolean
         fun cyclePositionSeconds(cycleDurationSeconds: Float): Float
     }
 
@@ -57,6 +58,9 @@ class MetronomeLoopPlayer private constructor(
             stop()
             track.release()
         }
+
+        override fun isPlaying(): Boolean =
+            track.playState == AudioTrack.PLAYSTATE_PLAYING
 
         override fun cyclePositionSeconds(cycleDurationSeconds: Float): Float {
             if (track.playState != AudioTrack.PLAYSTATE_PLAYING || cycleFrameCount <= 0) {
@@ -119,6 +123,9 @@ class MetronomeLoopPlayer private constructor(
             stop()
             track.release()
         }
+
+        override fun isPlaying(): Boolean =
+            track.playState == AudioTrack.PLAYSTATE_PLAYING
 
         override fun cyclePositionSeconds(cycleDurationSeconds: Float): Float {
             if (track.playState != AudioTrack.PLAYSTATE_PLAYING || cycleFrameCount <= 0) {
@@ -210,6 +217,8 @@ class MetronomeLoopPlayer private constructor(
             mediaPlayer.release()
         }
 
+        override fun isPlaying(): Boolean = mediaPlayer.isPlaying
+
         override fun cyclePositionSeconds(cycleDurationSeconds: Float): Float {
             if (!mediaPlayer.isPlaying || cycleDurationSeconds <= 0f) return 0f
             val cycleNanos = (cycleDurationSeconds * 1_000_000_000L).toLong()
@@ -219,6 +228,8 @@ class MetronomeLoopPlayer private constructor(
     }
 
     fun start() = backend.start()
+
+    fun isPlaying(): Boolean = backend.isPlaying()
 
     fun stop() = backend.stop()
 
