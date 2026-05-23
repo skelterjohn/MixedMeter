@@ -50,10 +50,7 @@ class MetronomeLoopPlayer private constructor(
         }
 
         override fun stop() {
-            if (track.playState == AudioTrack.PLAYSTATE_PLAYING) {
-                track.pause()
-            }
-            track.setPlaybackHeadPosition(0)
+            track.haltImmediately()
         }
 
         override fun release() {
@@ -90,7 +87,7 @@ class MetronomeLoopPlayer private constructor(
         }
 
         override fun start() {
-            haltFeeder()
+            haltFeederAndJoin()
             if (track.playState == AudioTrack.PLAYSTATE_PLAYING) {
                 track.pause()
             }
@@ -103,15 +100,17 @@ class MetronomeLoopPlayer private constructor(
 
         override fun stop() {
             haltFeeder()
-            if (track.playState == AudioTrack.PLAYSTATE_PLAYING) {
-                track.pause()
-            }
-            track.flush()
-            track.setPlaybackHeadPosition(0)
+            track.haltImmediately()
         }
 
+        /** Stop feeding without blocking — used for an instant user-facing halt. */
         private fun haltFeeder() {
             feeding = false
+            feederThread?.interrupt()
+        }
+
+        private fun haltFeederAndJoin() {
+            haltFeeder()
             feederThread?.join(500)
             feederThread = null
         }
@@ -171,16 +170,19 @@ class MetronomeLoopPlayer private constructor(
         private val mediaPlayer: MediaPlayer,
     ) : Backend {
         private val startNano = AtomicLong(0L)
+        private var prepared = true
 
         override fun prime() {
             mediaPlayer.start()
             mediaPlayer.pause()
             mediaPlayer.seekTo(0)
+            prepared = true
         }
 
         override fun start() {
-            if (mediaPlayer.isPlaying) {
-                mediaPlayer.pause()
+            if (!prepared) {
+                mediaPlayer.prepare()
+                prepared = true
             }
             mediaPlayer.seekTo(0)
             startNano.set(System.nanoTime())
@@ -188,10 +190,13 @@ class MetronomeLoopPlayer private constructor(
         }
 
         override fun stop() {
-            if (mediaPlayer.isPlaying) {
-                mediaPlayer.pause()
+            try {
+                if (mediaPlayer.isPlaying) {
+                    mediaPlayer.stop()
+                }
+            } catch (_: IllegalStateException) {
             }
-            mediaPlayer.seekTo(0)
+            prepared = false
             startNano.set(0L)
         }
 
@@ -227,6 +232,18 @@ class MetronomeLoopPlayer private constructor(
     fun cycleDurationSeconds(): Float = cycleDurationSeconds
 
     companion object {
+        private fun AudioTrack.haltImmediately() {
+            try {
+                pause()
+                flush()
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    stop()
+                }
+                setPlaybackHeadPosition(0)
+            } catch (_: IllegalStateException) {
+            }
+        }
+
         fun create(context: Context, loop: MetronomeLoopRenderer.MetronomeLoop): MetronomeLoopPlayer {
             buildStaticPlayer(loop)?.let { return it }
             try {

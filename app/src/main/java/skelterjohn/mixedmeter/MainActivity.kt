@@ -316,7 +316,10 @@ class MainActivity : ComponentActivity() {
                     val focusManager = LocalFocusManager.current
                     val circleRadiusPx = with(LocalDensity.current) { 100.dp.toPx() }
                     val toggleMetronome = {
-                        if (!isOn) {
+                        if (isOn) {
+                            loopPlayerHolder.value?.stop()
+                            playbackPosition = 0f
+                        } else {
                             committedBpm = bpm
                             playbackPosition = 0f
                         }
