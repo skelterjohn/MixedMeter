@@ -75,6 +75,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
@@ -305,6 +306,13 @@ class MainActivity : ComponentActivity() {
                     containerColor = Color.Gray
                 ) { innerPadding ->
                     val focusManager = LocalFocusManager.current
+                    val circleRadiusPx = with(LocalDensity.current) { 100.dp.toPx() }
+                    val toggleMetronome = {
+                        if (!isOn) {
+                            committedBpm = bpm
+                        }
+                        isOn = !isOn
+                    }
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -313,19 +321,38 @@ class MainActivity : ComponentActivity() {
                             .pointerInput(Unit) {
                                 detectTapGestures(onTap = { focusManager.clearFocus() })
                             }
-                            .pointerInput(Unit) {
+                            .pointerInput(circleCenter, circleRadiusPx, isOn) {
+                                var dragStartedInCircle = false
+                                var lastDragPosition = Offset.Zero
+                                fun isInCircle(position: Offset): Boolean {
+                                    val dx = position.x - circleCenter.x
+                                    val dy = position.y - circleCenter.y
+                                    return dx * dx + dy * dy <= circleRadiusPx * circleRadiusPx
+                                }
                                 detectDragGestures(
-                                    onDragStart = { },
+                                    onDragStart = { startOffset ->
+                                        lastDragPosition = startOffset
+                                        dragStartedInCircle = isInCircle(startOffset)
+                                    },
                                     onDragEnd = {
-                                        committedBpm = bpm
+                                        if (dragStartedInCircle) {
+                                            if (isInCircle(lastDragPosition)) {
+                                                toggleMetronome()
+                                            }
+                                        } else {
+                                            committedBpm = bpm
+                                        }
                                     },
                                     onDragCancel = {
-                                        committedBpm = bpm
+                                        if (!dragStartedInCircle) {
+                                            committedBpm = bpm
+                                        }
                                     },
                                     onDrag = { change, dragAmount ->
                                         change.consume()
+                                        lastDragPosition = change.position
+                                        if (dragStartedInCircle) return@detectDragGestures
 
-                                        // Vector from center to current touch
                                         val dx = change.position.x - circleCenter.x
                                         val dy = change.position.y - circleCenter.y
                                         val distance = sqrt(dx * dx + dy * dy).coerceAtLeast(100f)
@@ -333,7 +360,7 @@ class MainActivity : ComponentActivity() {
                                         val sensitivity = 50f / distance
                                         val delta = dragAmount.x - dragAmount.y
                                         tempoUnits = (tempoUnits + delta * sensitivity).coerceIn(0f, 380f)
-                                    }
+                                    },
                                 )
                             },
                         contentAlignment = Alignment.Center
@@ -544,12 +571,7 @@ class MainActivity : ComponentActivity() {
                                 bpm = bpm,
                                 isOn = isOn,
                                 beatProgress = activeBoxProgress,
-                                onToggle = {
-                                    if (!isOn) {
-                                        committedBpm = bpm
-                                    }
-                                    isOn = !isOn
-                                },
+                                onToggle = toggleMetronome,
                                 modifier = Modifier.onGloballyPositioned { coords ->
                                     boxLayoutCoordinates?.let { boxCoords ->
                                         // Calculate center relative to the parent Box
