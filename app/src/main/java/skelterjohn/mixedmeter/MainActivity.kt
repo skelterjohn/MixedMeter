@@ -330,7 +330,7 @@ class MainActivity : ComponentActivity() {
                                         val dy = change.position.y - circleCenter.y
                                         val distance = sqrt(dx * dx + dy * dy).coerceAtLeast(100f)
 
-                                        val sensitivity = 150f / distance
+                                        val sensitivity = 50f / distance
                                         val delta = dragAmount.x - dragAmount.y
                                         tempoUnits = (tempoUnits + delta * sensitivity).coerceIn(0f, 380f)
                                     }
