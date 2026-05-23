@@ -296,6 +296,7 @@ class MainActivity : ComponentActivity() {
                         attempts++
                     }
                     val player = loopPlayerHolder.value ?: return@LaunchedEffect
+                    playbackPosition = 0f
                     player.start()
                     try {
                         while (isActive) {
@@ -317,6 +318,7 @@ class MainActivity : ComponentActivity() {
                     val toggleMetronome = {
                         if (!isOn) {
                             committedBpm = bpm
+                            playbackPosition = 0f
                         }
                         isOn = !isOn
                     }

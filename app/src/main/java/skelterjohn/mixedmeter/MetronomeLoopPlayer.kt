@@ -42,6 +42,9 @@ class MetronomeLoopPlayer private constructor(
         }
 
         override fun start() {
+            if (track.playState == AudioTrack.PLAYSTATE_PLAYING) {
+                track.pause()
+            }
             track.setPlaybackHeadPosition(0)
             track.play()
         }
@@ -87,20 +90,30 @@ class MetronomeLoopPlayer private constructor(
         }
 
         override fun start() {
-            writeFullLoop()
+            haltFeeder()
+            if (track.playState == AudioTrack.PLAYSTATE_PLAYING) {
+                track.pause()
+            }
+            track.flush()
             track.setPlaybackHeadPosition(0)
+            writeFullLoop()
             startFeeder()
             track.play()
         }
 
         override fun stop() {
-            feeding = false
-            feederThread?.join(500)
-            feederThread = null
+            haltFeeder()
             if (track.playState == AudioTrack.PLAYSTATE_PLAYING) {
                 track.pause()
             }
+            track.flush()
             track.setPlaybackHeadPosition(0)
+        }
+
+        private fun haltFeeder() {
+            feeding = false
+            feederThread?.join(500)
+            feederThread = null
         }
 
         override fun release() {
@@ -166,6 +179,9 @@ class MetronomeLoopPlayer private constructor(
         }
 
         override fun start() {
+            if (mediaPlayer.isPlaying) {
+                mediaPlayer.pause()
+            }
             mediaPlayer.seekTo(0)
             startNano.set(System.nanoTime())
             mediaPlayer.start()
@@ -176,6 +192,7 @@ class MetronomeLoopPlayer private constructor(
                 mediaPlayer.pause()
             }
             mediaPlayer.seekTo(0)
+            startNano.set(0L)
         }
 
         override fun release() {
