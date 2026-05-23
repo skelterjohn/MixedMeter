@@ -58,8 +58,10 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-import java.util.concurrent.atomic.AtomicLong
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -249,7 +251,9 @@ class MainActivity : ComponentActivity() {
                         if (!isOn) return@derivedStateOf 0f
                         val (_, totalDuration) = beatBoxSchedule
                         if (totalDuration <= 0f) {
-                            return@derivedStateOf playbackPosition.coerceIn(0f, 1f)
+                            val beatPeriod = 60f / committedBpm.coerceAtLeast(1f)
+                            val inBeat = playbackPosition % beatPeriod
+                            return@derivedStateOf (inBeat / beatPeriod).coerceIn(0f, 1f)
                         }
                         val box = activeBeatBox ?: return@derivedStateOf 0f
                         if (box.duration <= 0f) return@derivedStateOf 0f
@@ -258,46 +262,49 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                val cycleAnchorNanos = remember { AtomicLong(0L) }
+                val loopPlayerHolder = remember { mutableStateOf<MetronomeLoopPlayer?>(null) }
 
-                LaunchedEffect(isOn, beatToneSetting, leadToneSetting, committedBpm, timeSignatures, selectedNote) {
-                    if (isOn) {
-                        Log.d(
-                            "MixedMeter",
-                            "Starting metronome beat tone: $beatToneSetting, lead tone: $leadToneSetting",
-                        )
-                        cycleAnchorNanos.set(0L)
-                        val clickPlayer = MetronomeClickPlayer(
-                            context = context,
+                // Pre-render and prime audio while idle so play can start immediately.
+                LaunchedEffect(
+                    metronomeClickSchedule,
+                    beatToneSetting,
+                    leadToneSetting,
+                ) {
+                    loopPlayerHolder.value?.release()
+                    loopPlayerHolder.value = null
+                    val schedule = metronomeClickSchedule
+                    val player = withContext(Dispatchers.Default) {
+                        val loop = MetronomeLoopRenderer.render(
+                            schedule = schedule,
                             useBeepBeatTone = beatToneSetting == "beep",
                             useBeepLeadTone = leadToneSetting == "beep",
                         )
-                        val metronomeEngine = MetronomeEngine(
-                            clickPlayer = clickPlayer,
-                            onCycleAnchor = { cycleAnchorNanos.set(it) },
-                        )
-                        metronomeEngine.start(metronomeClickSchedule)
-                        try {
-                            while (isActive) {
-                                withFrameNanos {
-                                    val anchor = cycleAnchorNanos.get()
-                                    playbackPosition = if (anchor > 0L) {
-                                        metronomePlaybackPosition(
-                                            cycleAnchorNanos = anchor,
-                                            getSchedule = { metronomeClickSchedule },
-                                        )
-                                    } else {
-                                        0f
-                                    }
-                                }
-                            }
-                        } finally {
-                            metronomeEngine.stop()
-                            clickPlayer.release()
-                        }
-                    } else {
-                        cycleAnchorNanos.set(0L)
+                        MetronomeLoopPlayer.create(context, loop)
+                    }
+                    loopPlayerHolder.value = player
+                }
+
+                LaunchedEffect(isOn) {
+                    if (!isOn) {
+                        loopPlayerHolder.value?.stop()
                         playbackPosition = 0f
+                        return@LaunchedEffect
+                    }
+                    var attempts = 0
+                    while (loopPlayerHolder.value == null && isActive && attempts < 500) {
+                        delay(10)
+                        attempts++
+                    }
+                    val player = loopPlayerHolder.value ?: return@LaunchedEffect
+                    player.start()
+                    try {
+                        while (isActive) {
+                            withFrameNanos {
+                                playbackPosition = player.cyclePositionSeconds()
+                            }
+                        }
+                    } finally {
+                        player.stop()
                     }
                 }
 

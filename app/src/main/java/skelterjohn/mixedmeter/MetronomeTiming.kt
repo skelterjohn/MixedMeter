@@ -63,15 +63,3 @@ fun boxDurationNanos(bpm: Float, denominator: Int, selectedNoteValue: Float): Lo
     return (60_000_000_000.0 / bpm / denominator / selectedNoteValue).toLong().coerceAtLeast(1L)
 }
 
-fun metronomePlaybackPosition(
-    cycleAnchorNanos: Long,
-    getSchedule: () -> MetronomeClickSchedule,
-): Float {
-    val schedule = getSchedule()
-    val elapsed = System.nanoTime() - cycleAnchorNanos
-    if (schedule.totalCycleNanos > 0L && schedule.clickOffsetsNanos.isNotEmpty()) {
-        return ((elapsed % schedule.totalCycleNanos).toFloat() / 1_000_000_000f).coerceAtLeast(0f)
-    }
-    val period = schedule.beatPeriodNanos
-    return ((elapsed % period).toFloat() / period.toFloat()).coerceIn(0f, 1f)
-}

@@ -6,8 +6,10 @@ import java.io.RandomAccessFile
 import kotlin.math.PI
 import kotlin.math.sin
 
-internal object MetronomeClickWav {
-    private const val SAMPLE_RATE = 44_100
+object MetronomeClickWav {
+    const val SAMPLE_RATE = 44_100
+
+    fun clickSamples(useBeepTone: Boolean): ShortArray = generateClickSamples(useBeepTone)
 
     fun cacheFile(context: Context, useBeepTone: Boolean): File {
         val file = File(context.cacheDir, if (useBeepTone) "metronome_beep.wav" else "metronome_bip.wav")
@@ -27,6 +29,10 @@ internal object MetronomeClickWav {
             val envelope = 1.0 - (i.toDouble() / sampleCount)
             (sin(2.0 * PI * frequencyHz * t) * envelope * amplitude).toInt().toShort()
         }
+    }
+
+    fun writeLoopWav(file: File, samples: ShortArray) {
+        writeMonoPcmWav(file, samples)
     }
 
     private fun writeMonoPcmWav(file: File, samples: ShortArray) {
