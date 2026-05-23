@@ -330,6 +330,7 @@ class MainActivity : ComponentActivity() {
                             }
                             .pointerInput(circleCenter, circleRadiusPx, isOn) {
                                 var dragStartedInCircle = false
+                                var bpmAdjustActive = false
                                 var lastDragPosition = Offset.Zero
                                 fun isInCircle(position: Offset): Boolean {
                                     val dx = position.x - circleCenter.x
@@ -340,25 +341,29 @@ class MainActivity : ComponentActivity() {
                                     onDragStart = { startOffset ->
                                         lastDragPosition = startOffset
                                         dragStartedInCircle = isInCircle(startOffset)
+                                        bpmAdjustActive = !dragStartedInCircle
                                     },
                                     onDragEnd = {
-                                        if (dragStartedInCircle) {
-                                            if (isInCircle(lastDragPosition)) {
-                                                toggleMetronome()
-                                            }
-                                        } else {
-                                            committedBpm = bpm
+                                        when {
+                                            dragStartedInCircle && !bpmAdjustActive &&
+                                                isInCircle(lastDragPosition) -> toggleMetronome()
+                                            bpmAdjustActive -> committedBpm = bpm
                                         }
                                     },
                                     onDragCancel = {
-                                        if (!dragStartedInCircle) {
+                                        if (bpmAdjustActive) {
                                             committedBpm = bpm
                                         }
                                     },
                                     onDrag = { change, dragAmount ->
                                         change.consume()
                                         lastDragPosition = change.position
-                                        if (dragStartedInCircle) return@detectDragGestures
+                                        if (!bpmAdjustActive) {
+                                            if (dragStartedInCircle && isInCircle(change.position)) {
+                                                return@detectDragGestures
+                                            }
+                                            bpmAdjustActive = true
+                                        }
 
                                         val dx = change.position.x - circleCenter.x
                                         val dy = change.position.y - circleCenter.y
