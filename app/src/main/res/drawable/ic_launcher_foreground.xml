@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Adaptive icons mask the outer ~33%; keep artwork in the 66dp safe zone. -->
+<!-- Full 108dp layer: entire artwork is scaled to fit (edges may clip on some launcher shapes). -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item
-        android:width="66dp"
-        android:height="66dp"
+        android:width="108dp"
+        android:height="108dp"
         android:gravity="center">
         <bitmap
             android:gravity="center"
