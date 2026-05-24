@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 private val SequenceEmbossSurface = Color(0xFF969696)
+private val SequenceEmbossSurfaceActive = Color(0xFFB8B8B8)
 private val SequenceEmbossSurfaceDragging = Color(0xFFA8A8A8)
 private val SequenceEmbossHighlight = Color(0xFFDADADA)
 private val SequenceEmbossShadow = Color(0xFF454545)
@@ -42,10 +43,15 @@ private val SequenceEmbossShadow = Color(0xFF454545)
 @Composable
 private fun EmbossedSequenceItemBackground(
     isDragging: Boolean,
+    isActive: Boolean,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
-    val surfaceColor = if (isDragging) SequenceEmbossSurfaceDragging else SequenceEmbossSurface
+    val surfaceColor = when {
+        isDragging -> SequenceEmbossSurfaceDragging
+        isActive -> SequenceEmbossSurfaceActive
+        else -> SequenceEmbossSurface
+    }
     val bevelWidth = 3.dp
     Box(
         modifier = modifier
@@ -220,9 +226,11 @@ fun SequenceItemRow(
     item: SequenceItem,
     onDelete: () -> Unit,
     onRepeatCountChange: (Int) -> Unit,
+    onSelect: () -> Unit,
     rowDragModifier: Modifier,
     modifier: Modifier = Modifier,
     isDragging: Boolean = false,
+    isActive: Boolean = false,
 ) {
     Box(
         modifier = modifier
@@ -230,10 +238,11 @@ fun SequenceItemRow(
             .padding(vertical = 4.dp)
             .then(rowDragModifier),
     ) {
-        EmbossedSequenceItemBackground(isDragging = isDragging) {
+        EmbossedSequenceItemBackground(isDragging = isDragging, isActive = isActive) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .clickable(onClick = onSelect)
                     .padding(horizontal = 12.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.Top,
             ) {

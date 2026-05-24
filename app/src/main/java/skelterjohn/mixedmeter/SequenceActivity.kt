@@ -17,7 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
@@ -79,7 +79,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
     var loopEnabled by remember { mutableStateOf(false) }
     var isOn by remember { mutableStateOf(false) }
     var playbackPosition by remember { mutableFloatStateOf(0f) }
-    var currentItemIndex by remember { mutableIntStateOf(0) }
+    var activeItemIndex by remember { mutableIntStateOf(0) }
     var repeatsRemaining by remember { mutableIntStateOf(0) }
     var playbackGeneration by remember { mutableIntStateOf(0) }
     var prevCyclePosition by remember { mutableFloatStateOf(0f) }
@@ -95,13 +95,13 @@ private fun SequenceScreen(onBack: () -> Unit) {
 
     val activeSchedule by remember {
         derivedStateOf {
-            sequenceItems.getOrNull(currentItemIndex)?.metronomeSchedule()
+            sequenceItems.getOrNull(activeItemIndex)?.metronomeSchedule()
         }
     }
 
     val displayBpm by remember {
         derivedStateOf {
-            sequenceItems.getOrNull(currentItemIndex)?.displayBpm()
+            sequenceItems.getOrNull(activeItemIndex)?.displayBpm()
                 ?: sequenceItems.firstOrNull()?.displayBpm()
                 ?: 120f
         }
@@ -134,8 +134,9 @@ private fun SequenceScreen(onBack: () -> Unit) {
 
     fun beginPlaybackFromStart() {
         if (sequenceItems.isEmpty()) return
-        currentItemIndex = 0
-        repeatsRemaining = sequenceItems.first().repeatCount
+        val index = activeItemIndex.coerceIn(sequenceItems.indices)
+        activeItemIndex = index
+        repeatsRemaining = sequenceItems[index].repeatCount
         playbackGeneration++
         playbackPosition = 0f
         prevCyclePosition = 0f
@@ -155,14 +156,14 @@ private fun SequenceScreen(onBack: () -> Unit) {
             stopPlayback()
             return@LaunchedEffect
         }
-        if (currentItemIndex >= sequenceItems.size) {
-            currentItemIndex = 0
+        if (activeItemIndex >= sequenceItems.size) {
+            activeItemIndex = 0
             repeatsRemaining = sequenceItems.first().repeatCount
             if (isOn) playbackGeneration++
         }
     }
 
-    LaunchedEffect(isOn, currentItemIndex, playbackGeneration, beatToneSetting, leadToneSetting) {
+    LaunchedEffect(isOn, activeItemIndex, playbackGeneration, beatToneSetting, leadToneSetting) {
         if (!isOn) {
             loopPlayerHolder.value?.player?.stop()
             loopPlayerHolder.value?.player?.release()
@@ -170,7 +171,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
             return@LaunchedEffect
         }
 
-        val item = sequenceItems.getOrNull(currentItemIndex) ?: run {
+        val item = sequenceItems.getOrNull(activeItemIndex) ?: run {
             stopPlayback()
             return@LaunchedEffect
         }
@@ -223,10 +224,10 @@ private fun SequenceScreen(onBack: () -> Unit) {
                 repeatsRemaining--
                 if (repeatsRemaining > 0) return@withFrameNanos
 
-                val nextIndex = currentItemIndex + 1
+                val nextIndex = activeItemIndex + 1
                 if (nextIndex >= sequenceItems.size) {
                     if (loopEnabled) {
-                        currentItemIndex = 0
+                        activeItemIndex = 0
                         repeatsRemaining = sequenceItems.first().repeatCount
                         playbackGeneration++
                     } else {
@@ -235,7 +236,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
                     return@withFrameNanos
                 }
 
-                currentItemIndex = nextIndex
+                activeItemIndex = nextIndex
                 repeatsRemaining = sequenceItems[nextIndex].repeatCount
                 playbackGeneration++
             }
@@ -257,11 +258,19 @@ private fun SequenceScreen(onBack: () -> Unit) {
                 bottom = listBottomPadding,
             ),
         ) {
-            items(sequenceItems, key = { it.id }) { item ->
+            itemsIndexed(sequenceItems, key = { _, item -> item.id }) { index, item ->
                 ReorderableItem(reorderableState, key = item.id) { isDragging ->
                     SequenceItemRow(
                         item = item,
                         isDragging = isDragging,
+                        isActive = index == activeItemIndex,
+                        onSelect = {
+                            activeItemIndex = index
+                            if (isOn) {
+                                repeatsRemaining = item.repeatCount
+                                playbackGeneration++
+                            }
+                        },
                         onDelete = {
                             scope.launch {
                                 context.removeSequenceItemById(item.id)
