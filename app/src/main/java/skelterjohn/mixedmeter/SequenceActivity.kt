@@ -6,6 +6,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -18,16 +19,32 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 import skelterjohn.mixedmeter.ui.theme.MixedMeterTheme
@@ -59,6 +76,44 @@ private fun SequenceScreen(onBack: () -> Unit) {
     val sequenceItems by context.sequenceItemsFlow().collectAsState(initial = emptyList())
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val lazyListState = rememberLazyListState()
+    var loopEnabled by remember { mutableStateOf(false) }
+    var isOn by remember { mutableStateOf(false) }
+    var playbackPosition by remember { mutableFloatStateOf(0f) }
+    var currentItemIndex by remember { mutableIntStateOf(0) }
+    var repeatsRemaining by remember { mutableIntStateOf(0) }
+    var playbackGeneration by remember { mutableIntStateOf(0) }
+    var prevCyclePosition by remember { mutableFloatStateOf(0f) }
+    val loopPlayerHolder = remember { mutableStateOf<LoopPlayerSlot?>(null) }
+
+    val beatToneSetting by remember {
+        context.dataStore.data.map { preferences -> preferences[TONE_KEY] ?: "bip" }
+    }.collectAsState(initial = "bip")
+
+    val leadToneSetting by remember {
+        context.dataStore.data.map { preferences -> preferences[LEAD_TONE_KEY] ?: "bip" }
+    }.collectAsState(initial = "bip")
+
+    val activeSchedule by remember {
+        derivedStateOf {
+            sequenceItems.getOrNull(currentItemIndex)?.metronomeSchedule()
+        }
+    }
+
+    val displayBpm by remember {
+        derivedStateOf {
+            sequenceItems.getOrNull(currentItemIndex)?.displayBpm()
+                ?: sequenceItems.firstOrNull()?.displayBpm()
+                ?: 120f
+        }
+    }
+
+    val beatProgress by remember {
+        derivedStateOf {
+            val schedule = activeSchedule ?: return@derivedStateOf 0f
+            beatBoxProgress(isOn, playbackPosition, schedule)
+        }
+    }
+
     val reorderableState = rememberReorderableLazyListState(lazyListState) { from, to ->
         val reordered = sequenceItems.toMutableList().apply {
             add(to.index, removeAt(from.index))
@@ -67,6 +122,127 @@ private fun SequenceScreen(onBack: () -> Unit) {
             context.setSequenceItems(reordered)
         }
     }
+
+    fun stopPlayback() {
+        loopPlayerHolder.value?.player?.stop()
+        loopPlayerHolder.value?.player?.release()
+        loopPlayerHolder.value = null
+        playbackPosition = 0f
+        prevCyclePosition = 0f
+        isOn = false
+    }
+
+    fun beginPlaybackFromStart() {
+        if (sequenceItems.isEmpty()) return
+        currentItemIndex = 0
+        repeatsRemaining = sequenceItems.first().repeatCount
+        playbackGeneration++
+        playbackPosition = 0f
+        prevCyclePosition = 0f
+        isOn = true
+    }
+
+    val togglePlayback = {
+        if (isOn) {
+            stopPlayback()
+        } else {
+            beginPlaybackFromStart()
+        }
+    }
+
+    LaunchedEffect(sequenceItems) {
+        if (sequenceItems.isEmpty()) {
+            stopPlayback()
+            return@LaunchedEffect
+        }
+        if (currentItemIndex >= sequenceItems.size) {
+            currentItemIndex = 0
+            repeatsRemaining = sequenceItems.first().repeatCount
+            if (isOn) playbackGeneration++
+        }
+    }
+
+    LaunchedEffect(isOn, currentItemIndex, playbackGeneration, beatToneSetting, leadToneSetting) {
+        if (!isOn) {
+            loopPlayerHolder.value?.player?.stop()
+            loopPlayerHolder.value?.player?.release()
+            loopPlayerHolder.value = null
+            return@LaunchedEffect
+        }
+
+        val item = sequenceItems.getOrNull(currentItemIndex) ?: run {
+            stopPlayback()
+            return@LaunchedEffect
+        }
+
+        val schedule = item.metronomeSchedule()
+        val oldPlayer = loopPlayerHolder.value?.player
+        val newPlayer = withContext(Dispatchers.Default) {
+            val loop = MetronomeLoopRenderer.render(
+                schedule = schedule,
+                useBeepBeatTone = beatToneSetting == "beep",
+                useBeepLeadTone = leadToneSetting == "beep",
+            )
+            MetronomeLoopPlayer.create(context, loop)
+        }
+        oldPlayer?.release()
+        loopPlayerHolder.value = LoopPlayerSlot(newPlayer, schedule)
+        playbackPosition = 0f
+        prevCyclePosition = 0f
+        newPlayer.start()
+    }
+
+    LaunchedEffect(isOn) {
+        if (!isOn) return@LaunchedEffect
+
+        var attempts = 0
+        while (loopPlayerHolder.value == null && isActive && attempts < 500) {
+            delay(10)
+            attempts++
+        }
+
+        while (isActive && isOn) {
+            withFrameNanos {
+                val slot = loopPlayerHolder.value ?: return@withFrameNanos
+                val player = slot.player
+                if (!player.isPlaying()) return@withFrameNanos
+
+                val position = player.cyclePositionSeconds()
+                playbackPosition = position
+
+                val cycleDuration = loopCycleSeconds(slot.schedule)
+                if (cycleDuration <= 0f) return@withFrameNanos
+
+                val wrappedPrev = prevCyclePosition % cycleDuration
+                val wrappedNow = position % cycleDuration
+                val completedCycle = wrappedPrev > cycleDuration * 0.5f && wrappedNow < cycleDuration * 0.15f
+                prevCyclePosition = position
+
+                if (!completedCycle) return@withFrameNanos
+
+                repeatsRemaining--
+                if (repeatsRemaining > 0) return@withFrameNanos
+
+                val nextIndex = currentItemIndex + 1
+                if (nextIndex >= sequenceItems.size) {
+                    if (loopEnabled) {
+                        currentItemIndex = 0
+                        repeatsRemaining = sequenceItems.first().repeatCount
+                        playbackGeneration++
+                    } else {
+                        stopPlayback()
+                    }
+                    return@withFrameNanos
+                }
+
+                currentItemIndex = nextIndex
+                repeatsRemaining = sequenceItems[nextIndex].repeatCount
+                playbackGeneration++
+            }
+        }
+    }
+
+    val listBottomPadding = CircleDisplaySize + BottomNavEdgePadding * 2
 
     Box(
         modifier = Modifier
@@ -78,7 +254,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
             state = lazyListState,
             contentPadding = PaddingValues(
                 top = statusBarTop + 32.dp,
-                bottom = BottomNavButtonSize + BottomNavEdgePadding * 2,
+                bottom = listBottomPadding,
             ),
         ) {
             items(sequenceItems, key = { it.id }) { item ->
@@ -100,6 +276,28 @@ private fun SequenceScreen(onBack: () -> Unit) {
                     )
                 }
             }
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(
+                        checked = loopEnabled,
+                        onCheckedChange = { loopEnabled = it },
+                        colors = CheckboxDefaults.colors(
+                            checkedColor = Color.Black,
+                            uncheckedColor = Color.Black,
+                            checkmarkColor = Color.White,
+                        ),
+                    )
+                    Text(
+                        text = "loop",
+                        color = Color.Black,
+                    )
+                }
+            }
         }
 
         Row(
@@ -107,11 +305,21 @@ private fun SequenceScreen(onBack: () -> Unit) {
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .padding(BottomNavEdgePadding),
-            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Bottom,
         ) {
-            BottomNavIconButton(onClick = onBack) {
+            BottomNavIconButton(onClick = {
+                stopPlayback()
+                onBack()
+            }) {
                 ArrowDropDownNavIcon()
             }
+            CircleDisplay(
+                bpm = displayBpm,
+                isOn = isOn,
+                beatProgress = beatProgress,
+                onToggle = togglePlayback,
+            )
         }
     }
 }

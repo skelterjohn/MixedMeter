@@ -100,11 +100,6 @@ import kotlinx.coroutines.launch
 import skelterjohn.mixedmeter.ui.theme.MixedMeterTheme
 import kotlin.math.sqrt
 
-private data class LoopPlayerSlot(
-    val player: MetronomeLoopPlayer,
-    val schedule: MetronomeClickSchedule,
-)
-
 /** Audio halted; UI finishes the current beat on [uiSchedule], then swaps to [newPlayer]. */
 private data class PendingBpmSwap(
     val uiSchedule: MetronomeClickSchedule,
@@ -224,18 +219,7 @@ class MainActivity : ComponentActivity() {
                 }.collectAsState(initial = "bip")
 
                 val selectedNoteValue by remember {
-                    derivedStateOf {
-                        when (selectedNote) {
-                            "♪" -> 0.125f
-                            "♪." -> 0.1875f
-                            "♩" -> 0.25f
-                            "♩." -> 0.375f
-                            "𝅗𝅥" -> 0.5f
-                            "𝅗𝅥." -> 0.75f
-                            "𝅝" -> 1.0f
-                            else -> 0.25f
-                        }
-                    }
+                    derivedStateOf { noteValueForSymbol(selectedNote) }
                 }
 
                 val metronomeClickSchedule by remember {
@@ -283,17 +267,7 @@ class MainActivity : ComponentActivity() {
 
                 val activeBoxProgress by remember {
                     derivedStateOf {
-                        if (!isOn) return@derivedStateOf 0f
-                        val (_, totalDuration) = beatBoxSchedule
-                        if (totalDuration <= 0f) {
-                            val beatPeriod = activeSchedule.beatPeriodNanos / 1_000_000_000f
-                            val inBeat = playbackPosition % beatPeriod
-                            return@derivedStateOf (inBeat / beatPeriod).coerceIn(0f, 1f)
-                        }
-                        val box = activeBeatBox ?: return@derivedStateOf 0f
-                        if (box.duration <= 0f) return@derivedStateOf 0f
-                        val position = playbackPosition % totalDuration
-                        ((position - box.startTime) / box.duration).coerceIn(0f, 1f)
+                        beatBoxProgress(isOn, playbackPosition, activeSchedule)
                     }
                 }
 
@@ -1077,94 +1051,3 @@ fun TimeSignatureSelector(
     }
 }
 
-@Composable
-fun CircleDisplay(
-    bpm: Float,
-    isOn: Boolean,
-    beatProgress: Float,
-    onToggle: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val minBpm = 30f
-    val maxBpm = 220f
-    val startAngle = 120f // 30 degrees clockwise of straight down (90 + 30)
-    val sweepAngle = 300f // Full rotation minus the 60 degree gap at the bottom
-    val ratio = ((bpm - minBpm) / (maxBpm - minBpm)).coerceIn(0f, 1f)
-    val currentAngle = startAngle + ratio * sweepAngle
-
-    Box(
-        modifier = modifier
-            .size(200.dp)
-            .clip(CircleShape)
-            .clickable { onToggle() },
-        contentAlignment = Alignment.Center
-    ) {
-        // Concentric borders: thin white outside, thick black inside
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .border(width = 2.dp, color = Color.White, shape = CircleShape)
-                .padding(2.dp)
-                .border(width = 8.dp, color = Color.Black, shape = CircleShape)
-        )
-        // Indicator line and tempo background
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val innerRadius = size.width / 2 - 12.dp.toPx()
-            
-            if (isOn) {
-                // Background starts white at the beginning of each active beat box
-                drawCircle(
-                    color = Color.White,
-                    radius = innerRadius,
-                    center = center
-                )
-                
-                // Grey sweep covers the white clockwise
-                drawArc(
-                    color = Color.Gray,
-                    startAngle = currentAngle,
-                    sweepAngle = 360f * beatProgress,
-                    useCenter = true,
-                    topLeft = Offset(center.x - innerRadius, center.y - innerRadius),
-                    size = Size(innerRadius * 2, innerRadius * 2)
-                )
-            } else {
-                // Solid grey when off
-                drawCircle(
-                    color = Color.Gray,
-                    radius = innerRadius,
-                    center = center
-                )
-            }
-
-            // Faint track for the dial
-            drawArc(
-                color = Color.White.copy(alpha = 0.1f),
-                startAngle = startAngle,
-                sweepAngle = sweepAngle,
-                useCenter = false,
-                style = Stroke(width = 2.dp.toPx()),
-                topLeft = Offset(12.dp.toPx(), 12.dp.toPx()),
-                size = Size(size.width - 24.dp.toPx(), size.height - 24.dp.toPx())
-            )
-
-            // Indicator line
-            rotate(degrees = currentAngle - 270f) {
-                drawLine(
-                    color = if (isOn) Color.White else Color.White.copy(alpha = 0.5f),
-                    start = center,
-                    end = Offset(x = size.width / 2, y = -2.dp.toPx()),
-                    strokeWidth = 8.dp.toPx()
-                )
-            }
-        }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    MixedMeterTheme {
-        CircleDisplay(bpm = 120f, isOn = false, beatProgress = 0f, onToggle = {})
-    }
-}
