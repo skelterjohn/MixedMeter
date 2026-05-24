@@ -11,11 +11,13 @@ private val SEQUENCE_ITEMS_KEY = stringPreferencesKey("sequence_items")
 
 sealed class SequenceItem {
     abstract val id: String
+    abstract val repeatCount: Int
 
     data class PlainBpm(
         override val id: String = newSequenceItemId(),
         val bpm: Float,
         val selectedNote: String,
+        override val repeatCount: Int = 1,
     ) : SequenceItem()
 
     data class MeterPattern(
@@ -23,6 +25,7 @@ sealed class SequenceItem {
         val bpm: Float,
         val selectedNote: String,
         val timeSignatures: List<TimeSignature>,
+        override val repeatCount: Int = 1,
     ) : SequenceItem()
 }
 
@@ -80,6 +83,21 @@ suspend fun Context.removeSequenceItemById(id: String) {
     }
 }
 
+suspend fun Context.updateSequenceItemRepeatCount(id: String, repeatCount: Int) {
+    val count = repeatCount.coerceAtLeast(1)
+    dataStore.edit { preferences ->
+        val updated = decodeSequenceItems(preferences[SEQUENCE_ITEMS_KEY] ?: "").map { item ->
+            when {
+                item.id != id -> item
+                item is SequenceItem.PlainBpm -> item.copy(repeatCount = count)
+                item is SequenceItem.MeterPattern -> item.copy(repeatCount = count)
+                else -> item
+            }
+        }
+        preferences[SEQUENCE_ITEMS_KEY] = encodeSequenceItems(updated)
+    }
+}
+
 private fun encodeSequenceItems(items: List<SequenceItem>): String {
     return items.joinToString("\n") { encodeSequenceItem(it) }
 }
@@ -98,6 +116,7 @@ private fun encodeSequenceItem(item: SequenceItem): String {
             item.id,
             item.bpm.toString(),
             item.selectedNote,
+            item.repeatCount.toString(),
         ).joinToString("|")
 
         is SequenceItem.MeterPattern -> listOf(
@@ -106,6 +125,7 @@ private fun encodeSequenceItem(item: SequenceItem): String {
             item.bpm.toString(),
             item.selectedNote,
             item.timeSignatures.joinToString(",") { "${it.numerator}/${it.denominator}" },
+            item.repeatCount.toString(),
         ).joinToString("|")
     }
 }
@@ -121,6 +141,13 @@ private fun decodeSequenceItem(line: String): SequenceItem? {
 
 private fun decodePlainBpm(parts: List<String>): SequenceItem.PlainBpm? {
     return when {
+        parts.size >= 5 -> SequenceItem.PlainBpm(
+            id = parts[1],
+            bpm = parts[2].toFloatOrNull() ?: return null,
+            selectedNote = parts[3],
+            repeatCount = parts[4].toIntOrNull()?.coerceAtLeast(1) ?: 1,
+        )
+
         parts.size >= 4 -> SequenceItem.PlainBpm(
             id = parts[1],
             bpm = parts[2].toFloatOrNull() ?: return null,
@@ -143,16 +170,25 @@ private fun decodeMeterPattern(parts: List<String>): SequenceItem.MeterPattern? 
     val bpm: Float
     val selectedNote: String
 
-    if (parts.size >= 5) {
+    val repeatCount: Int
+    if (parts.size >= 6) {
         id = parts[1]
         bpm = parts[2].toFloatOrNull() ?: return null
         selectedNote = parts[3]
         timeSignaturePartIndex = 4
+        repeatCount = parts[5].toIntOrNull()?.coerceAtLeast(1) ?: 1
+    } else if (parts.size >= 5) {
+        id = parts[1]
+        bpm = parts[2].toFloatOrNull() ?: return null
+        selectedNote = parts[3]
+        timeSignaturePartIndex = 4
+        repeatCount = 1
     } else if (parts.size >= 4) {
         id = newSequenceItemId()
         bpm = parts[1].toFloatOrNull() ?: return null
         selectedNote = parts[2]
         timeSignaturePartIndex = 3
+        repeatCount = 1
     } else {
         return null
     }
@@ -173,5 +209,6 @@ private fun decodeMeterPattern(parts: List<String>): SequenceItem.MeterPattern? 
         bpm = bpm,
         selectedNote = selectedNote,
         timeSignatures = timeSignatures,
+        repeatCount = repeatCount,
     )
 }

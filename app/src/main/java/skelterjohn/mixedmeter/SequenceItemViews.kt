@@ -1,18 +1,27 @@
 package skelterjohn.mixedmeter
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -155,9 +164,62 @@ fun SequenceItemLabel(
 }
 
 @Composable
+fun SequenceRepeatCountSelector(
+    count: Int,
+    onCountChange: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var showPicker by remember { mutableStateOf(false) }
+    Text(
+        text = count.coerceAtLeast(1).toString(),
+        color = Color.Black,
+        fontSize = 24.sp,
+        fontWeight = FontWeight.Bold,
+        modifier = modifier
+            .border(1.dp, Color.Black, RoundedCornerShape(6.dp))
+            .clickable { showPicker = true }
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+    )
+    if (showPicker) {
+        SequenceRepeatCountPickerDialog(
+            initialValue = count.coerceAtLeast(1),
+            onDismiss = { showPicker = false },
+            onConfirm = { newCount ->
+                onCountChange(newCount.coerceAtLeast(1))
+                showPicker = false
+            },
+        )
+    }
+}
+
+@Composable
+private fun SequenceBeatBoxGrid(
+    count: Int,
+    modifier: Modifier = Modifier,
+) {
+    FlowRow(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        repeat(count.coerceAtLeast(1)) {
+            Box(
+                modifier = Modifier
+                    .size(SequenceBeatBoxSize)
+                    .background(Color.Black)
+                    .border(1.dp, Color.White),
+            )
+        }
+    }
+}
+
+private val SequenceBeatBoxSize = 20.dp
+
+@Composable
 fun SequenceItemRow(
     item: SequenceItem,
     onDelete: () -> Unit,
+    onRepeatCountChange: (Int) -> Unit,
     rowDragModifier: Modifier,
     modifier: Modifier = Modifier,
     isDragging: Boolean = false,
@@ -173,20 +235,38 @@ fun SequenceItemRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.Top,
             ) {
-                IconButton(
-                    onClick = onDelete,
-                    modifier = Modifier.size(48.dp),
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Remove from sequence",
-                        tint = Color.Black,
+                    IconButton(
+                        onClick = onDelete,
+                        modifier = Modifier.size(48.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Remove from sequence",
+                            tint = Color.Black,
+                        )
+                    }
+                    SequenceRepeatCountSelector(
+                        count = item.repeatCount,
+                        onCountChange = onRepeatCountChange,
                     )
                 }
-                Box(modifier = Modifier.weight(1f)) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 4.dp),
+                ) {
                     SequenceItemLabel(item = item)
+                    SequenceBeatBoxGrid(
+                        count = item.repeatCount,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                    )
                 }
             }
         }

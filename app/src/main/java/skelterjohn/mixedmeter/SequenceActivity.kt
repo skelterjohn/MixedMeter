@@ -91,6 +91,11 @@ private fun SequenceScreen(onBack: () -> Unit) {
                                 context.removeSequenceItemById(item.id)
                             }
                         },
+                        onRepeatCountChange = { repeatCount ->
+                            scope.launch {
+                                context.updateSequenceItemRepeatCount(item.id, repeatCount)
+                            }
+                        },
                         rowDragModifier = Modifier.draggableHandle(),
                     )
                 }
