@@ -3,6 +3,7 @@ package skelterjohn.mixedmeter
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -20,8 +21,35 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
+@Composable
+private fun StackedTimeSignature(
+    timeSignature: TimeSignature,
+    textStyle: TextStyle,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy((-8).dp),
+    ) {
+        Text(
+            text = timeSignature.numerator.toString(),
+            style = textStyle.copy(textAlign = TextAlign.Center),
+        )
+        Text(
+            text = if (timeSignature.denominator == 0) {
+                "4"
+            } else {
+                timeSignature.denominator.toString()
+            },
+            style = textStyle.copy(textAlign = TextAlign.Center),
+        )
+    }
+}
 
 @Composable
 fun SequenceItemLabel(
@@ -52,9 +80,9 @@ fun SequenceItemLabel(
                     if (index > 0) {
                         Text(text = " + ", style = textStyle)
                     }
-                    Text(
-                        text = "${timeSignature.numerator}/${timeSignature.denominator}",
-                        style = textStyle,
+                    StackedTimeSignature(
+                        timeSignature = timeSignature,
+                        textStyle = textStyle,
                     )
                 }
                 Text(
