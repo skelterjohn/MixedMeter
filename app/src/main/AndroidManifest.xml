@@ -27,6 +27,11 @@
             android:exported="false"
             android:label="Settings"
             android:theme="@style/Theme.MixedMeter" />
+        <activity
+            android:name=".SequenceActivity"
+            android:exported="false"
+            android:label="Sequence"
+            android:theme="@style/Theme.MixedMeter" />
     </application>
 
 </manifest>

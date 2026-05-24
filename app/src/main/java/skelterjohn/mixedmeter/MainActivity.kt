@@ -40,7 +40,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -778,21 +777,28 @@ class MainActivity : ComponentActivity() {
                         }
                         }
 
-                        IconButton(
-                            onClick = {
-                                context.startActivity(Intent(context, SettingsActivity::class.java))
-                            },
+                        Row(
                             modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .padding(16.dp)
-                                .size(100.dp)
+                                .align(Alignment.BottomCenter)
+                                .fillMaxWidth()
+                                .padding(BottomNavEdgePadding),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Settings,
-                                contentDescription = "Settings",
-                                tint = Color.Black,
-                                modifier = Modifier.fillMaxSize()
-                            )
+                            BottomNavIconButton(
+                                onClick = { context.startSequenceActivity() },
+                            ) {
+                                ArrowDropUpNavIcon()
+                            }
+                            BottomNavIconButton(
+                                onClick = {
+                                    context.startActivity(
+                                        Intent(context, SettingsActivity::class.java),
+                                    )
+                                },
+                            ) {
+                                SettingsNavIcon()
+                            }
                         }
                     }
                 }
