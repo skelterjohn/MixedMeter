@@ -55,6 +55,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import kotlinx.coroutines.Dispatchers
@@ -95,6 +96,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import skelterjohn.mixedmeter.ui.theme.MixedMeterTheme
 import kotlin.math.sqrt
 
@@ -146,6 +148,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             MixedMeterTheme {
                 val context = LocalContext.current
+                val scope = rememberCoroutineScope()
                 var tempoUnits by remember { mutableFloatStateOf(180f) } // 120 BPM = 180 units
                 var circleCenter by remember { mutableStateOf(Offset.Zero) }
                 var boxLayoutCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
@@ -789,6 +792,22 @@ class MainActivity : ComponentActivity() {
                                 onClick = { context.startSequenceActivity() },
                             ) {
                                 ArrowDropUpNavIcon()
+                            }
+                            BottomNavIconButton(
+                                onClick = {
+                                    scope.launch {
+                                        context.appendSequenceItem(
+                                            metronomeSnapshot(
+                                                bpm = committedBpm,
+                                                selectedNote = selectedNote,
+                                                timeSignatures = timeSignatures,
+                                            ),
+                                        )
+                                        context.startSequenceActivity()
+                                    }
+                                },
+                            ) {
+                                AddToSequenceNavIcon()
                             }
                             BottomNavIconButton(
                                 onClick = {

@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.Settings
@@ -46,6 +47,16 @@ fun ArrowDropDownNavIcon(modifier: Modifier = Modifier) {
     Icon(
         imageVector = Icons.Default.ArrowDropDown,
         contentDescription = "Back to metronome",
+        tint = Color.Black,
+        modifier = modifier.fillMaxSize(),
+    )
+}
+
+@Composable
+fun AddToSequenceNavIcon(modifier: Modifier = Modifier) {
+    Icon(
+        imageVector = Icons.Default.Add,
+        contentDescription = "Add to sequence",
         tint = Color.Black,
         modifier = modifier.fillMaxSize(),
     )
