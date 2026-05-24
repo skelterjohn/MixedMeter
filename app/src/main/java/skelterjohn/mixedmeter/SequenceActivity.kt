@@ -77,8 +77,6 @@ private fun SequenceScreen(onBack: () -> Unit) {
             modifier = Modifier.fillMaxSize(),
             state = lazyListState,
             contentPadding = PaddingValues(
-                start = 8.dp,
-                end = 16.dp,
                 top = statusBarTop + 32.dp,
                 bottom = BottomNavButtonSize + BottomNavEdgePadding * 2,
             ),
