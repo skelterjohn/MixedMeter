@@ -161,7 +161,7 @@ fun SequenceItemLabel(
                     )
                 }
                 Text(
-                    text = " @${item.bpm.toInt()}",
+                    text = " ${item.bpm.toInt()} = ${item.selectedNote}",
                     style = textStyle,
                 )
             }
@@ -201,18 +201,21 @@ fun SequenceRepeatCountSelector(
 @Composable
 private fun SequenceBeatBoxGrid(
     count: Int,
+    activeRepeatIndex: Int?,
     modifier: Modifier = Modifier,
 ) {
+    val boxCount = count.coerceAtLeast(1)
     FlowRow(
         modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        repeat(count.coerceAtLeast(1)) {
+        repeat(boxCount) { index ->
+            val isActiveRepeat = activeRepeatIndex != null && index == activeRepeatIndex
             Box(
                 modifier = Modifier
                     .size(SequenceBeatBoxSize)
-                    .background(Color.Black)
+                    .background(if (isActiveRepeat) Color.White else Color.Black)
                     .border(1.dp, Color.White),
             )
         }
@@ -231,6 +234,7 @@ fun SequenceItemRow(
     modifier: Modifier = Modifier,
     isDragging: Boolean = false,
     isActive: Boolean = false,
+    activeRepeatIndex: Int? = null,
 ) {
     Box(
         modifier = modifier
@@ -272,6 +276,7 @@ fun SequenceItemRow(
                     SequenceItemLabel(item = item)
                     SequenceBeatBoxGrid(
                         count = item.repeatCount,
+                        activeRepeatIndex = activeRepeatIndex,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 8.dp),

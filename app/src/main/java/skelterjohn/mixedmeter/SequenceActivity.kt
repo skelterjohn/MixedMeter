@@ -259,11 +259,17 @@ private fun SequenceScreen(onBack: () -> Unit) {
             ),
         ) {
             itemsIndexed(sequenceItems, key = { _, item -> item.id }) { index, item ->
+                val activeRepeatIndex = if (isOn && index == activeItemIndex) {
+                    (item.repeatCount - repeatsRemaining).coerceIn(0, item.repeatCount - 1)
+                } else {
+                    null
+                }
                 ReorderableItem(reorderableState, key = item.id) { isDragging ->
                     SequenceItemRow(
                         item = item,
                         isDragging = isDragging,
                         isActive = index == activeItemIndex,
+                        activeRepeatIndex = activeRepeatIndex,
                         onSelect = {
                             activeItemIndex = index
                             if (isOn) {
