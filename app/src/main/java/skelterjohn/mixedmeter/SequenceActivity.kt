@@ -16,7 +16,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -27,6 +28,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyListState
 import skelterjohn.mixedmeter.ui.theme.MixedMeterTheme
 
 class SequenceActivity : ComponentActivity() {
@@ -55,6 +58,15 @@ private fun SequenceScreen(onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     val sequenceItems by context.sequenceItemsFlow().collectAsState(initial = emptyList())
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val lazyListState = rememberLazyListState()
+    val reorderableState = rememberReorderableLazyListState(lazyListState) { from, to ->
+        val reordered = sequenceItems.toMutableList().apply {
+            add(to.index, removeAt(from.index))
+        }
+        scope.launch {
+            context.setSequenceItems(reordered)
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -63,6 +75,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
+            state = lazyListState,
             contentPadding = PaddingValues(
                 start = 8.dp,
                 end = 16.dp,
@@ -70,15 +83,19 @@ private fun SequenceScreen(onBack: () -> Unit) {
                 bottom = BottomNavButtonSize + BottomNavEdgePadding * 2,
             ),
         ) {
-            itemsIndexed(sequenceItems) { index, item ->
-                SequenceItemRow(
-                    item = item,
-                    onDelete = {
-                        scope.launch {
-                            context.removeSequenceItemAt(index)
-                        }
-                    },
-                )
+            items(sequenceItems, key = { it.id }) { item ->
+                ReorderableItem(reorderableState, key = item.id) { isDragging ->
+                    SequenceItemRow(
+                        item = item,
+                        isDragging = isDragging,
+                        onDelete = {
+                            scope.launch {
+                                context.removeSequenceItemById(item.id)
+                            }
+                        },
+                        rowDragModifier = Modifier.draggableHandle(),
+                    )
+                }
             }
         }
 
