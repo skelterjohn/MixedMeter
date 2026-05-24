@@ -23,8 +23,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private fun formatBpmLabel(bpm: Float): String = "${bpm.toInt()} BPM"
-
 @Composable
 fun SequenceItemLabel(
     item: SequenceItem,
@@ -38,7 +36,7 @@ fun SequenceItemLabel(
     when (item) {
         is SequenceItem.PlainBpm -> {
             Text(
-                text = formatBpmLabel(item.bpm),
+                text = "@${item.bpm.toInt()}",
                 style = textStyle,
                 modifier = modifier,
             )
@@ -60,7 +58,7 @@ fun SequenceItemLabel(
                     )
                 }
                 Text(
-                    text = " @ ${formatBpmLabel(item.bpm)}",
+                    text = " @${item.bpm.toInt()}",
                     style = textStyle,
                 )
             }
