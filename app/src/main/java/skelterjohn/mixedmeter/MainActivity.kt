@@ -767,21 +767,23 @@ class MainActivity : ComponentActivity() {
                             ) {
                                 ArrowDropUpNavIcon()
                             }
-                            BottomNavIconButton(
-                                onClick = {
-                                    scope.launch {
-                                        context.appendSequenceItem(
-                                            metronomeSnapshot(
-                                                bpm = committedBpm,
-                                                selectedNote = selectedNote,
-                                                timeSignatures = timeSignatures,
-                                            ),
-                                        )
-                                        context.startSequenceActivity()
-                                    }
-                                },
-                            ) {
-                                AddToSequenceNavIcon()
+                            if (timeSignatures.isNotEmpty()) {
+                                BottomNavIconButton(
+                                    onClick = {
+                                        scope.launch {
+                                            context.appendSequenceItem(
+                                                SequenceItem.MeterPattern(
+                                                    bpm = committedBpm,
+                                                    selectedNote = selectedNote,
+                                                    timeSignatures = timeSignatures,
+                                                ),
+                                            )
+                                            context.startSequenceActivity()
+                                        }
+                                    },
+                                ) {
+                                    AddToSequenceNavIcon()
+                                }
                             }
                             BottomNavIconButton(
                                 onClick = {
