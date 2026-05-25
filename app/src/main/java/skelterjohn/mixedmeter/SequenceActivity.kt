@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.draw.clip
@@ -64,6 +65,24 @@ private data class WorkspaceBaseline(
     val name: String,
     val itemsKey: String,
 )
+
+private suspend fun LazyListState.scrollSequenceItemToCenter(
+    index: Int,
+    fallbackItemHeightPx: Int,
+) {
+    var attempts = 0
+    while (layoutInfo.viewportSize.height == 0 && attempts < 50) {
+        delay(16)
+        attempts++
+    }
+    val layoutInfo = layoutInfo
+    val viewportHeight = layoutInfo.viewportSize.height
+    if (viewportHeight <= 0) return
+    val itemHeight = layoutInfo.visibleItemsInfo.firstOrNull { it.index == index }?.size
+        ?: fallbackItemHeightPx
+    val scrollOffset = -((viewportHeight - itemHeight) / 2).coerceAtLeast(0)
+    scrollToItem(index = index, scrollOffset = scrollOffset)
+}
 
 class SequenceActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -388,21 +407,14 @@ private fun SequenceScreen(onBack: () -> Unit) {
         }
     }
 
+    val fallbackItemHeightPx = with(density) { 120.dp.roundToPx() }
+
     LaunchedEffect(activeItemIndex, sequenceItems.size) {
         if (sequenceItems.isEmpty()) return@LaunchedEffect
-        val index = activeItemIndex.coerceIn(sequenceItems.indices)
-        var attempts = 0
-        while (lazyListState.layoutInfo.viewportSize.height == 0 && attempts < 50) {
-            delay(16)
-            attempts++
-        }
-        val layoutInfo = lazyListState.layoutInfo
-        val viewportHeight = layoutInfo.viewportSize.height
-        if (viewportHeight <= 0) return@LaunchedEffect
-        val itemHeight = layoutInfo.visibleItemsInfo.firstOrNull { it.index == index }?.size
-            ?: with(density) { 120.dp.roundToPx() }
-        val scrollOffset = -((viewportHeight - itemHeight) / 2).coerceAtLeast(0)
-        lazyListState.scrollToItem(index = index, scrollOffset = scrollOffset)
+        lazyListState.scrollSequenceItemToCenter(
+            index = activeItemIndex.coerceIn(sequenceItems.indices),
+            fallbackItemHeightPx = fallbackItemHeightPx,
+        )
     }
 
     if (showSaveDialog) {
@@ -550,15 +562,12 @@ private fun SequenceScreen(onBack: () -> Unit) {
                 SequenceItemMap(
                     itemCount = sequenceItems.size,
                     activeIndex = activeItemIndex.coerceIn(sequenceItems.indices),
-                    onItemSelected = { index ->
-                        if (index != activeItemIndex) {
-                            activeRepeatIndex = null
-                        }
-                        activeItemIndex = index
-                        val prerender = sequencePrerender
-                        val segment = prerender?.let { resolveStartSegment(it) }
-                        if (isOn && prerender != null && segment != null) {
-                            seekToSegment(segment)
+                    onItemScroll = { index ->
+                        scope.launch {
+                            lazyListState.scrollSequenceItemToCenter(
+                                index = index.coerceIn(sequenceItems.indices),
+                                fallbackItemHeightPx = fallbackItemHeightPx,
+                            )
                         }
                     },
                     modifier = Modifier

@@ -16,7 +16,7 @@ import androidx.compose.ui.unit.dp
 fun SequenceItemMap(
     itemCount: Int,
     activeIndex: Int,
-    onItemSelected: (Int) -> Unit,
+    onItemScroll: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (itemCount <= 0) return
@@ -40,7 +40,7 @@ fun SequenceItemMap(
                         edgePadding = edgePaddingPx.toPx(),
                     )
                     if (index in 0 until itemCount) {
-                        onItemSelected(index)
+                        onItemScroll(index)
                     }
                 }
             },
