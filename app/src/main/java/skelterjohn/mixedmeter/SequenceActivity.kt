@@ -6,6 +6,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -42,11 +43,16 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
@@ -61,6 +67,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 import skelterjohn.mixedmeter.ui.theme.MixedMeterTheme
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 private data class WorkspaceBaseline(
     val name: String,
@@ -127,6 +135,10 @@ private fun SequenceScreen(onBack: () -> Unit) {
     var activeItemIndex by remember { mutableIntStateOf(0) }
     var activeRepeatIndex by remember { mutableStateOf<Int?>(null) }
     var playbackGeneration by remember { mutableIntStateOf(0) }
+    var sequencePercent by remember { mutableFloatStateOf(PercentDialMid) }
+    var circleCenter by remember { mutableStateOf(Offset.Zero) }
+    var circleDragCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    val circleRadiusPx = with(density) { (CircleDisplaySize / 2).toPx() }
     var playbackStartSeconds by remember { mutableFloatStateOf(0f) }
     var prerenderToken by remember { mutableIntStateOf(0) }
     var sequencePrerender by remember { mutableStateOf<SequencePrerender?>(null) }
@@ -297,6 +309,9 @@ private fun SequenceScreen(onBack: () -> Unit) {
             }
         }
     }
+
+    val currentSequencePercent = rememberUpdatedState(sequencePercent)
+    val currentTogglePlayback = rememberUpdatedState(togglePlayback)
 
     LaunchedEffect(sequenceItems, beatToneSetting, leadToneSetting) {
         sequencePrerender = null
@@ -646,12 +661,88 @@ private fun SequenceScreen(onBack: () -> Unit) {
                     ArrowDropDownNavIcon()
                 }
             }
-            CircleDisplay(
-                bpm = displayBpm,
-                isOn = isOn,
-                beatProgress = beatProgress,
-                onToggle = togglePlayback,
-            )
+            Box(
+                modifier = Modifier
+                    .onGloballyPositioned { circleDragCoordinates = it }
+                    .pointerInput(circleCenter, circleRadiusPx, isOn) {
+                        var dragStartedInCircle = false
+                        var percentAdjustActive = false
+                        var lastDragPosition = Offset.Zero
+                        var lastPointerAngle = 0f
+                        var totalAngularDrag = 0f
+                        var gesturePercent = PercentDialMid
+                        fun isInCircle(position: Offset): Boolean {
+                            val dx = position.x - circleCenter.x
+                            val dy = position.y - circleCenter.y
+                            return dx * dx + dy * dy <= circleRadiusPx * circleRadiusPx
+                        }
+                        detectDragGestures(
+                            onDragStart = { startOffset ->
+                                lastDragPosition = startOffset
+                                dragStartedInCircle = isInCircle(startOffset)
+                                percentAdjustActive = false
+                                totalAngularDrag = 0f
+                                gesturePercent = currentSequencePercent.value
+                                lastPointerAngle = pointerAngleDegrees(circleCenter, startOffset)
+                            },
+                            onDragEnd = {
+                                if (
+                                    dragStartedInCircle &&
+                                    totalAngularDrag < 5f &&
+                                    isInCircle(lastDragPosition)
+                                ) {
+                                    currentTogglePlayback.value()
+                                }
+                            },
+                            onDrag = { change, _ ->
+                                change.consume()
+                                lastDragPosition = change.position
+                                val angle = pointerAngleDegrees(circleCenter, change.position)
+                                val delta = shortestAngleDelta(lastPointerAngle, angle)
+                                lastPointerAngle = angle
+                                totalAngularDrag += abs(delta)
+                                if (isOn) return@detectDragGestures
+                                val inCircle = isInCircle(change.position)
+                                if (dragStartedInCircle) {
+                                    if (!inCircle) return@detectDragGestures
+                                    percentAdjustActive = true
+                                    gesturePercent = (
+                                        gesturePercent +
+                                            percentChangeForAngleDelta(delta, gesturePercent)
+                                        ).coerceIn(PercentDialMin, PercentDialMax)
+                                    sequencePercent = gesturePercent
+                                    return@detectDragGestures
+                                }
+                                if (!percentAdjustActive) {
+                                    percentAdjustActive = true
+                                }
+                                gesturePercent = (
+                                    gesturePercent +
+                                        percentChangeForAngleDelta(delta, gesturePercent)
+                                    ).coerceIn(PercentDialMin, PercentDialMax)
+                                sequencePercent = gesturePercent
+                            },
+                        )
+                    },
+            ) {
+                CircleDisplay(
+                    bpm = displayBpm,
+                    isOn = isOn,
+                    beatProgress = beatProgress,
+                    onToggle = togglePlayback,
+                    dialAngleDegrees = percentToDialAngle(sequencePercent),
+                    showDialRangeTicks = true,
+                    bottomHalfLabel = "${sequencePercent.roundToInt()}%",
+                    modifier = Modifier.onGloballyPositioned { coords ->
+                        circleDragCoordinates?.let { boxCoords ->
+                            circleCenter = boxCoords.localPositionOf(
+                                coords,
+                                Offset(coords.size.width / 2f, coords.size.height / 2f),
+                            )
+                        }
+                    },
+                )
+            }
         }
     }
 }

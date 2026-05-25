@@ -47,6 +47,18 @@ const val BpmDialRangeTickStartScale = 0.9f
 
 const val BpmDialRangeTickEndScale = 1f
 
+const val PercentDialMin = 25f
+const val PercentDialMax = 200f
+const val PercentDialMid = 100f
+
+/** Compose degrees: straight up — [PercentDialMid] on the sequence percent dial. */
+const val PercentDialStraightUpAngle = 270f
+
+private const val PercentDialLowSweep =
+    PercentDialStraightUpAngle - BpmDialStartAngle
+
+private const val PercentDialHighSweep = 150f
+
 /** Matches [drawLine] end inset in [CircleDisplay] canvas (`y = -2.dp`). */
 private val BpmDialLineEndInset = 2.dp
 
@@ -74,6 +86,47 @@ fun shortestAngleDelta(fromDegrees: Float, toDegrees: Float): Float {
 
 fun bpmChangeForAngleDelta(angleDeltaDegrees: Float): Float {
     return angleDeltaDegrees / BpmDialSweepAngle * (BpmDialMaxBpm - BpmDialMinBpm)
+}
+
+fun percentToDialAngle(percent: Float): Float {
+    val p = percent.coerceIn(PercentDialMin, PercentDialMax)
+    return if (p <= PercentDialMid) {
+        val ratio = (p - PercentDialMin) / (PercentDialMid - PercentDialMin)
+        BpmDialStartAngle + ratio * PercentDialLowSweep
+    } else {
+        val ratio = (p - PercentDialMid) / (PercentDialMax - PercentDialMid)
+        var angle = PercentDialStraightUpAngle + ratio * PercentDialHighSweep
+        if (angle >= 360f) angle -= 360f
+        angle
+    }
+}
+
+fun percentChangeForAngleDelta(angleDeltaDegrees: Float, currentPercent: Float): Float {
+    val degreesPerPercent = when {
+        currentPercent < PercentDialMid ||
+            (currentPercent == PercentDialMid && angleDeltaDegrees < 0f) ->
+            PercentDialLowSweep / (PercentDialMid - PercentDialMin)
+        else ->
+            PercentDialHighSweep / (PercentDialMax - PercentDialMid)
+    }
+    return angleDeltaDegrees / degreesPerPercent
+}
+
+/** Compose degrees: straight down — center of the bottom half label. */
+const val CircleBottomHalfLabelAngle = 90f
+
+/** Radial distance from circle center as a fraction of half the circle diameter. */
+const val CircleBottomHalfLabelRadialScale = 0.45f
+
+/** Label center in circle-local px: lower semicircle along [CircleBottomHalfLabelAngle]. */
+fun circleBottomHalfLabelOffsetPx(circleSizePx: Float): Offset {
+    val centerPx = circleSizePx / 2f
+    val labelRadiusPx = CircleBottomHalfLabelRadialScale * centerPx
+    val rad = Math.toRadians(CircleBottomHalfLabelAngle.toDouble())
+    return Offset(
+        centerPx + labelRadiusPx * cos(rad).toFloat(),
+        centerPx + labelRadiusPx * sin(rad).toFloat(),
+    )
 }
 
 /** Label center in circle-local px: radial from canvas center at [angleDegrees], 1.1× the dial line length. */
@@ -121,7 +174,7 @@ private fun Modifier.centeredAt(positionPx: Offset): Modifier = layout { measura
 }
 
 @Composable
-private fun BpmDialRangeLabel(
+private fun CircleOverlayLabel(
     text: String,
     positionPx: Offset,
     modifier: Modifier = Modifier,
@@ -143,8 +196,11 @@ fun CircleDisplay(
     modifier: Modifier = Modifier,
     showBpmDial: Boolean = true,
     showBpmRangeLabels: Boolean = false,
+    showDialRangeTicks: Boolean = false,
+    bottomHalfLabel: String? = null,
+    dialAngleDegrees: Float? = null,
 ) {
-    val currentAngle = bpmToDialAngle(bpm)
+    val currentAngle = dialAngleDegrees ?: bpmToDialAngle(bpm)
     val density = LocalDensity.current
     val circleSizePx = with(density) { CircleDisplaySize.toPx() }
     val lineEndGapPx = with(density) { BpmDialLineEndInset.toPx() }
@@ -155,7 +211,7 @@ fun CircleDisplay(
             .clickable { onToggle() },
     ) {
         if (showBpmDial && showBpmRangeLabels) {
-            BpmDialRangeLabel(
+            CircleOverlayLabel(
                 text = BpmDialMinBpm.toInt().toString(),
                 positionPx = bpmDialRangeLabelOffsetPx(
                     circleSizePx,
@@ -163,7 +219,7 @@ fun CircleDisplay(
                     lineEndGapPx,
                 ),
             )
-            BpmDialRangeLabel(
+            CircleOverlayLabel(
                 text = BpmDialMaxBpm.toInt().toString(),
                 positionPx = bpmDialRangeLabelOffsetPx(
                     circleSizePx,
@@ -231,7 +287,7 @@ fun CircleDisplay(
                             strokeWidth = 8.dp.toPx(),
                         )
                     }
-                    if (showBpmRangeLabels) {
+                    if (showDialRangeTicks || showBpmRangeLabels) {
                         val lineLengthPx = center.x + BpmDialLineEndInset.toPx()
                         val tickStrokePx = BpmDialRangeTickStroke.toPx()
                         drawBpmDialRangeTick(BpmDialMinLabelAngle, lineLengthPx, tickStrokePx)
@@ -239,6 +295,12 @@ fun CircleDisplay(
                     }
                 }
             }
+        }
+        bottomHalfLabel?.let { label ->
+            CircleOverlayLabel(
+                text = label,
+                positionPx = circleBottomHalfLabelOffsetPx(circleSizePx),
+            )
         }
     }
 }
