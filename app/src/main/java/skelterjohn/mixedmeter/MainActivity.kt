@@ -40,8 +40,8 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -804,7 +804,7 @@ class MainActivity : ComponentActivity() {
                                                     ) {
                                                         if (!clickActive) {
                                                             Icon(
-                                                                imageVector = Icons.Default.Close,
+                                                                imageVector = Icons.AutoMirrored.Filled.VolumeOff,
                                                                 contentDescription = "Beat muted",
                                                                 tint = if (isCurrentBeat) {
                                                                     Color.Black
