@@ -70,6 +70,7 @@ fun renderSequence(
         loop.samples.copyInto(buffer, destinationOffset = frameOffset)
         frameOffset += loop.samples.size
     }
+    MetronomeLoopRenderer.fadeTailForLoopWrap(buffer)
 
     return SequencePrerender(
         samples = buffer,

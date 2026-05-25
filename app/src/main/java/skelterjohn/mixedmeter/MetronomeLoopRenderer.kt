@@ -61,7 +61,11 @@ object MetronomeLoopRenderer {
         )
     }
 
-    /** Fade the tail toward zero so the wrap back to sample 0 is not a click. */
+    /** Fade the tail toward zero so a loop wrap back to sample 0 is not a click. */
+    fun fadeTailForLoopWrap(buffer: ShortArray) {
+        seamLoopBoundary(buffer)
+    }
+
     private fun seamLoopBoundary(buffer: ShortArray) {
         val fadeFrames = (MetronomeClickWav.SAMPLE_RATE / 200).coerceAtMost(buffer.size / 4)
         for (i in 0 until fadeFrames) {

@@ -201,7 +201,14 @@ private fun SequenceScreen(onBack: () -> Unit) {
         }
     }
 
-    LaunchedEffect(isOn, playbackGeneration, sequencePrerender, beatToneSetting, leadToneSetting) {
+    LaunchedEffect(
+        isOn,
+        playbackGeneration,
+        sequencePrerender,
+        beatToneSetting,
+        leadToneSetting,
+        loopEnabled,
+    ) {
         if (!isOn) {
             playbackHolder.value?.player?.stop()
             playbackHolder.value?.player?.release()
@@ -217,7 +224,11 @@ private fun SequenceScreen(onBack: () -> Unit) {
             cycleDurationSeconds = prerender.durationSeconds,
         )
         val newPlayer = withContext(Dispatchers.Default) {
-            MetronomeLoopPlayer.createOneShot(context, loop)
+            if (loopEnabled) {
+                MetronomeLoopPlayer.create(context, loop)
+            } else {
+                MetronomeLoopPlayer.createOneShot(context, loop)
+            }
         }
         oldPlayer?.release()
         playbackHolder.value = SequencePlaybackSlot(newPlayer, prerender)
@@ -248,20 +259,11 @@ private fun SequenceScreen(onBack: () -> Unit) {
                     activeRepeatIndex = segment.repeatIndex
                 }
 
+                if (loopEnabled) return@withFrameNanos
+
                 val finished = position >= prerender.durationSeconds - 0.02f ||
                     (!player.isPlaying() && position > 0.05f)
-                if (!finished) return@withFrameNanos
-
-                if (loopEnabled) {
-                    player.seekToSeconds(0f)
-                    sequencePosition = 0f
-                    val first = prerender.segments.firstOrNull()
-                    if (first != null) {
-                        activeItemIndex = first.itemIndex
-                        activeRepeatIndex = first.repeatIndex
-                    }
-                    player.start()
-                } else {
+                if (finished) {
                     stopPlayback()
                 }
             }
