@@ -47,6 +47,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
@@ -77,6 +78,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -97,6 +99,8 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import skelterjohn.mixedmeter.ui.theme.MixedMeterTheme
 import kotlin.math.sqrt
 
@@ -234,6 +238,25 @@ class MainActivity : ComponentActivity() {
 
                 val loopPlayerHolder = remember { mutableStateOf<LoopPlayerSlot?>(null) }
                 var pendingBpmSwap by remember { mutableStateOf<PendingBpmSwap?>(null) }
+
+                fun stopMainPlayback() {
+                    pendingBpmSwap?.newPlayer?.release()
+                    pendingBpmSwap = null
+                    loopPlayerHolder.value?.player?.stop()
+                    playbackPosition = 0f
+                    isOn = false
+                }
+
+                val lifecycleOwner = LocalLifecycleOwner.current
+                DisposableEffect(lifecycleOwner) {
+                    val observer = LifecycleEventObserver { _, event ->
+                        if (event == Lifecycle.Event.ON_STOP) {
+                            stopMainPlayback()
+                        }
+                    }
+                    lifecycleOwner.lifecycle.addObserver(observer)
+                    onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+                }
 
                 val activeSchedule by remember {
                     derivedStateOf {
