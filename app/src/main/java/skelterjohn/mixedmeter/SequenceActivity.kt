@@ -410,6 +410,20 @@ private fun SequenceScreen(onBack: () -> Unit) {
 
     val fallbackItemHeightPx = with(density) { 120.dp.roundToPx() }
 
+    val showSequenceMap by remember {
+        derivedStateOf {
+            val count = sequenceItems.size
+            if (count == 0) return@derivedStateOf false
+            val layoutInfo = lazyListState.layoutInfo
+            if (layoutInfo.viewportSize.height == 0) return@derivedStateOf false
+            if (lazyListState.canScrollForward || lazyListState.canScrollBackward) {
+                return@derivedStateOf true
+            }
+            val visibleIndices = layoutInfo.visibleItemsInfo.map { it.index }.toSet()
+            (0 until count).any { it !in visibleIndices }
+        }
+    }
+
     LaunchedEffect(activeItemIndex, sequenceItems.size) {
         if (sequenceItems.isEmpty()) return@LaunchedEffect
         lazyListState.scrollSequenceItemToCenter(
@@ -559,7 +573,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
                 }
             }
             }
-            if (sequenceItems.isNotEmpty()) {
+            if (showSequenceMap) {
                 SequenceItemMap(
                     itemCount = sequenceItems.size,
                     activeIndex = activeItemIndex.coerceIn(sequenceItems.indices),
