@@ -40,6 +40,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -781,17 +782,17 @@ class MainActivity : ComponentActivity() {
                                                         index,
                                                         beatIndex,
                                                     )
-                                                    val boxColor = when {
-                                                        isCurrentBeat -> Color.White
-                                                        !clickActive -> theme.background
-                                                        else -> Color.Black
+                                                    val boxColor = if (isCurrentBeat) {
+                                                        Color.White
+                                                    } else {
+                                                        Color.Black
                                                     }
                                                     Box(
                                                         modifier = Modifier
                                                             .weight(1f)
                                                             .fillMaxSize()
                                                             .background(boxColor)
-                                                            .border(1.dp, Color.White)
+                                                            .border(1.dp, theme.text)
                                                             .clickable {
                                                                 beatClickActive = toggleBeatClickActive(
                                                                     beatClickActive,
@@ -799,7 +800,21 @@ class MainActivity : ComponentActivity() {
                                                                     beatIndex,
                                                                 )
                                                             },
-                                                    )
+                                                        contentAlignment = Alignment.Center,
+                                                    ) {
+                                                        if (!clickActive) {
+                                                            Icon(
+                                                                imageVector = Icons.Default.Close,
+                                                                contentDescription = "Beat muted",
+                                                                tint = if (isCurrentBeat) {
+                                                                    Color.Black
+                                                                } else {
+                                                                    Color.White
+                                                                },
+                                                                modifier = Modifier.size(14.dp),
+                                                            )
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
