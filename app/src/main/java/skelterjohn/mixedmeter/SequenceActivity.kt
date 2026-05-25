@@ -25,6 +25,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.Checkbox
@@ -599,6 +600,27 @@ private fun SequenceScreen(onBack: () -> Unit) {
                         contentDescription = "Load sequence",
                         enabled = hasSavedSequence,
                         onClick = { showLoadDialog = true },
+                    )
+                    SequenceNavIconButton(
+                        icon = Icons.Default.Delete,
+                        contentDescription = "Clear sequence",
+                        enabled = sequenceItems.isNotEmpty(),
+                        onClick = {
+                            pausePlayback()
+                            activeItemIndex = 0
+                            activeRepeatIndex = null
+                            sequencePosition = 0f
+                            scope.launch {
+                                context.setSequenceItems(emptyList())
+                                sequenceName = ""
+                                context.setSequenceName("")
+                                workspaceBaseline = WorkspaceBaseline(
+                                    name = "",
+                                    itemsKey = sequenceItemsContentKey(emptyList()),
+                                )
+                                wasItemsDirty = false
+                            }
+                        },
                     )
                 }
                 BottomNavIconButton(onClick = {
