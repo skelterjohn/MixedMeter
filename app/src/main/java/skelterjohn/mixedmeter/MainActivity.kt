@@ -771,7 +771,6 @@ class MainActivity : ComponentActivity() {
                                             verticalArrangement = Arrangement.spacedBy(0.dp),
                                         ) {
                                             val num = ts.numerator
-                                            val inactiveBeatGrey = Color(0xFF808080)
                                             if (num > 0) {
                                                 repeat(num) { beatIndex ->
                                                     val currentBeat = activeBeatBox
@@ -783,8 +782,8 @@ class MainActivity : ComponentActivity() {
                                                         beatIndex,
                                                     )
                                                     val boxColor = when {
-                                                        !clickActive -> inactiveBeatGrey
                                                         isCurrentBeat -> Color.White
+                                                        !clickActive -> theme.background
                                                         else -> Color.Black
                                                     }
                                                     Box(
