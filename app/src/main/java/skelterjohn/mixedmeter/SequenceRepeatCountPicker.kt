@@ -30,10 +30,11 @@ fun SequenceRepeatCountPickerDialog(
     onDismiss: () -> Unit,
     onConfirm: (Int) -> Unit,
 ) {
+    val theme = currentAppTheme()
     var selected by remember { mutableIntStateOf(initialValue.coerceAtLeast(1)) }
 
     Dialog(onDismissRequest = onDismiss) {
-        Surface(color = Color(0xFFE0E0E0)) {
+        Surface(color = theme.dialogSurface) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -64,10 +65,10 @@ fun SequenceRepeatCountPickerDialog(
                     horizontalArrangement = Arrangement.End,
                 ) {
                     TextButton(onClick = onDismiss) {
-                        Text("Cancel", color = Color.Black)
+                        Text("Cancel", color = theme.text)
                     }
                     TextButton(onClick = { onConfirm(selected.coerceAtLeast(1)) }) {
-                        Text("OK", color = Color.Black)
+                        Text("OK", color = theme.text)
                     }
                 }
             }

@@ -21,6 +21,7 @@ fun SequenceItemMap(
 ) {
     if (itemCount <= 0) return
 
+    val theme = currentAppTheme()
     val edgePaddingPx = 12.dp
     val lineWidthPx = 2.dp
     val dashHalfWidthPx = 10.dp
@@ -51,7 +52,7 @@ fun SequenceItemMap(
         val span = (bottom - top).coerceAtLeast(1f)
 
         drawLine(
-            color = Color.Black,
+            color = theme.text,
             start = Offset(lineX, top),
             end = Offset(lineX, bottom),
             strokeWidth = lineWidthPx.toPx(),
@@ -62,7 +63,7 @@ fun SequenceItemMap(
             val y = top + span * (index + 0.5f) / itemCount
             val isActive = index == activeIndex
             drawLine(
-                color = Color.Black,
+                color = theme.text,
                 start = Offset(lineX - if (isActive) activeDashHalfWidthPx.toPx() else dashHalfWidthPx.toPx(), y),
                 end = Offset(lineX + if (isActive) activeDashHalfWidthPx.toPx() else dashHalfWidthPx.toPx(), y),
                 strokeWidth = if (isActive) activeDashStrokePx.toPx() else dashStrokePx.toPx(),

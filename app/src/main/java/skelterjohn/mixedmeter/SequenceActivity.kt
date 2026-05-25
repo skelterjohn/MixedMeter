@@ -106,7 +106,13 @@ class SequenceActivity : ComponentActivity() {
             },
         )
         setContent {
-            MixedMeterTheme {
+            val context = LocalContext.current
+            val themeSetting by remember {
+                context.dataStore.data
+                    .map { preferences -> preferences[THEME_KEY] ?: DEFAULT_THEME }
+            }.collectAsState(initial = DEFAULT_THEME)
+
+            MixedMeterTheme(themeName = themeSetting) {
                 SequenceScreen(onBack = { finishWithSlideDown() })
             }
         }
@@ -116,6 +122,7 @@ class SequenceActivity : ComponentActivity() {
 @Composable
 private fun SequenceScreen(onBack: () -> Unit) {
     val context = LocalContext.current
+    val theme = currentAppTheme()
     val scope = rememberCoroutineScope()
     val sequenceItems by context.sequenceItemsFlow().collectAsState(initial = emptyList())
     val savedSequences by context.savedSequencesFlow().collectAsState(initial = emptyList())
@@ -503,7 +510,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Gray),
+            .background(theme.background),
     ) {
         SequenceNameField(
             name = sequenceName,
@@ -579,14 +586,14 @@ private fun SequenceScreen(onBack: () -> Unit) {
                         checked = loopEnabled,
                         onCheckedChange = { loopEnabled = it },
                         colors = CheckboxDefaults.colors(
-                            checkedColor = Color.Black,
-                            uncheckedColor = Color.Black,
+                            checkedColor = theme.text,
+                            uncheckedColor = theme.text,
                             checkmarkColor = Color.White,
                         ),
                     )
                     Text(
                         text = "loop",
-                        color = Color.Black,
+                        color = theme.text,
                     )
                 }
             }

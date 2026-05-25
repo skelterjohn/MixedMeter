@@ -18,14 +18,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 
 val BottomNavButtonSize = 100.dp
 val BottomNavEdgePadding = 16.dp
 val SequenceNavIconButtonSize = 48.dp
-private val NavIconButtonSurface = Color(0xFFAEAEAE)
 
 @Composable
 fun SequenceNavIconButton(
@@ -35,19 +33,20 @@ fun SequenceNavIconButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
+    val theme = currentAppTheme()
     Box(
         modifier = modifier
             .size(SequenceNavIconButtonSize)
             .alpha(if (enabled) 1f else 0.4f)
-            .background(NavIconButtonSurface, RoundedCornerShape(6.dp))
-            .border(1.dp, Color.Black, RoundedCornerShape(6.dp))
+            .background(theme.buttonSurface, RoundedCornerShape(6.dp))
+            .border(1.dp, theme.buttonBorder, RoundedCornerShape(6.dp))
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
             imageVector = icon,
             contentDescription = contentDescription,
-            tint = Color.Black,
+            tint = theme.iconTint,
             modifier = Modifier.size(28.dp),
         )
     }
@@ -69,40 +68,44 @@ fun BottomNavIconButton(
 
 @Composable
 fun ArrowDropUpNavIcon(modifier: Modifier = Modifier) {
+    val theme = currentAppTheme()
     Icon(
         imageVector = Icons.Default.ArrowDropUp,
         contentDescription = "Sequences",
-        tint = Color.Black,
+        tint = theme.iconTint,
         modifier = modifier.fillMaxSize(),
     )
 }
 
 @Composable
 fun ArrowDropDownNavIcon(modifier: Modifier = Modifier) {
+    val theme = currentAppTheme()
     Icon(
         imageVector = Icons.Default.ArrowDropDown,
         contentDescription = "Back to metronome",
-        tint = Color.Black,
+        tint = theme.iconTint,
         modifier = modifier.fillMaxSize(),
     )
 }
 
 @Composable
 fun AddToSequenceNavIcon(modifier: Modifier = Modifier) {
+    val theme = currentAppTheme()
     Icon(
         imageVector = Icons.Default.Add,
         contentDescription = "Add to sequence",
-        tint = Color.Black,
+        tint = theme.iconTint,
         modifier = modifier.fillMaxSize(),
     )
 }
 
 @Composable
 fun SettingsNavIcon(modifier: Modifier = Modifier) {
+    val theme = currentAppTheme()
     Icon(
         imageVector = Icons.Default.Settings,
         contentDescription = "Settings",
-        tint = Color.Black,
+        tint = theme.iconTint,
         modifier = modifier.fillMaxSize(),
     )
 }

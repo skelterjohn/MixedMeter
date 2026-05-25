@@ -34,13 +34,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-private val SequenceEmbossSurface = Color(0xFF969696)
-private val SequenceEmbossSurfaceActive = Color(0xFFB8B8B8)
-private val SequenceRepeatCountButtonSurface = Color(0xFFAEAEAE)
-private val SequenceEmbossSurfaceDragging = Color(0xFFA8A8A8)
-private val SequenceEmbossHighlight = Color(0xFFDADADA)
-private val SequenceEmbossShadow = Color(0xFF454545)
-
 @Composable
 private fun EmbossedSequenceItemBackground(
     isDragging: Boolean,
@@ -48,10 +41,11 @@ private fun EmbossedSequenceItemBackground(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
+    val theme = currentAppTheme()
     val surfaceColor = when {
-        isDragging -> SequenceEmbossSurfaceDragging
-        isActive -> SequenceEmbossSurfaceActive
-        else -> SequenceEmbossSurface
+        isDragging -> theme.embossSurfaceDragging
+        isActive -> theme.embossSurfaceActive
+        else -> theme.embossSurface
     }
     val bevelWidth = 3.dp
     Box(
@@ -68,25 +62,25 @@ private fun EmbossedSequenceItemBackground(
                 val bevel = bevelWidth.toPx()
                 drawRect(color = surfaceColor)
                 drawLine(
-                    color = SequenceEmbossHighlight,
+                    color = theme.embossHighlight,
                     start = Offset.Zero,
                     end = Offset(size.width, 0f),
                     strokeWidth = bevel,
                 )
                 drawLine(
-                    color = SequenceEmbossHighlight,
+                    color = theme.embossHighlight,
                     start = Offset.Zero,
                     end = Offset(0f, size.height),
                     strokeWidth = bevel,
                 )
                 drawLine(
-                    color = SequenceEmbossShadow,
+                    color = theme.embossShadow,
                     start = Offset(0f, size.height),
                     end = Offset(size.width, size.height),
                     strokeWidth = bevel,
                 )
                 drawLine(
-                    color = SequenceEmbossShadow,
+                    color = theme.embossShadow,
                     start = Offset(size.width, 0f),
                     end = Offset(size.width, size.height),
                     strokeWidth = bevel,
@@ -133,8 +127,9 @@ fun SequenceItemLabel(
     tempoPercent: Float,
     modifier: Modifier = Modifier,
 ) {
+    val theme = currentAppTheme()
     val textStyle = TextStyle(
-        color = Color.Black,
+        color = theme.text,
         fontSize = 32.sp,
         fontWeight = FontWeight.Bold,
     )
@@ -177,16 +172,17 @@ fun SequenceRepeatCountSelector(
     onCountChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val theme = currentAppTheme()
     var showPicker by remember { mutableStateOf(false) }
     Text(
         text = count.coerceAtLeast(1).toString(),
-        color = Color.Black,
+        color = theme.text,
         fontSize = 24.sp,
         fontWeight = FontWeight.Bold,
         modifier = modifier
             .clickable { showPicker = true }
-            .background(SequenceRepeatCountButtonSurface, RoundedCornerShape(6.dp))
-            .border(1.dp, Color.Black, RoundedCornerShape(6.dp))
+            .background(theme.buttonSurface, RoundedCornerShape(6.dp))
+            .border(1.dp, theme.buttonBorder, RoundedCornerShape(6.dp))
             .padding(horizontal = 16.dp, vertical = 6.dp),
     )
     if (showPicker) {
@@ -273,7 +269,7 @@ fun SequenceItemRow(
                         Icon(
                             imageVector = Icons.Default.Delete,
                             contentDescription = "Remove from sequence",
-                            tint = Color.Black,
+                            tint = currentAppTheme().iconTint,
                         )
                     }
                     SequenceRepeatCountSelector(

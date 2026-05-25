@@ -42,9 +42,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 
-private val DialogSurfaceColor = Color(0xFFE0E0E0)
-private val SequenceNameFieldSurface = Color(0xFFAEAEAE)
-
 @Composable
 fun SequenceNameField(
     name: String,
@@ -52,6 +49,7 @@ fun SequenceNameField(
     modifier: Modifier = Modifier,
     showUntitled: Boolean = false,
 ) {
+    val theme = currentAppTheme()
     val focusManager = LocalFocusManager.current
     val displayValue = if (showUntitled) "" else name
     val placeholderAlpha = 0.45f
@@ -63,16 +61,16 @@ fun SequenceNameField(
         textStyle = TextStyle(
             fontSize = 28.sp,
             fontWeight = FontWeight.Bold,
-            color = Color.Black,
+            color = theme.text,
             textAlign = TextAlign.Center,
         ),
-        cursorBrush = SolidColor(Color.Black),
+        cursorBrush = SolidColor(theme.text),
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
         keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
         modifier = modifier
             .fillMaxWidth()
-            .background(SequenceNameFieldSurface, RoundedCornerShape(6.dp))
-            .border(1.dp, Color.Black, RoundedCornerShape(6.dp))
+            .background(theme.buttonSurface, RoundedCornerShape(6.dp))
+            .border(1.dp, theme.buttonBorder, RoundedCornerShape(6.dp))
             .padding(horizontal = 12.dp, vertical = 8.dp),
         decorationBox = { inner ->
             Box(
@@ -85,7 +83,7 @@ fun SequenceNameField(
                         style = TextStyle(
                             fontSize = 28.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.Black.copy(alpha = placeholderAlpha),
+                            color = theme.text.copy(alpha = placeholderAlpha),
                             textAlign = TextAlign.Center,
                         ),
                     )
@@ -102,12 +100,13 @@ fun SequenceSaveDialog(
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
 ) {
+    val theme = currentAppTheme()
     var name by remember { mutableStateOf(initialName) }
     val focusManager = LocalFocusManager.current
     val canSave = name.trim().isNotEmpty()
 
     Dialog(onDismissRequest = onDismiss) {
-        Surface(color = DialogSurfaceColor) {
+        Surface(color = theme.dialogSurface) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -115,7 +114,7 @@ fun SequenceSaveDialog(
             ) {
                 Text(
                     text = "Save sequence",
-                    color = Color.Black,
+                    color = theme.text,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
                 )
@@ -126,16 +125,16 @@ fun SequenceSaveDialog(
                     textStyle = TextStyle(
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.Black,
+                        color = theme.text,
                     ),
-                    cursorBrush = SolidColor(Color.Black),
+                    cursorBrush = SolidColor(theme.text),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 12.dp)
-                        .background(Color.White, RoundedCornerShape(6.dp))
-                        .border(1.dp, Color.Black, RoundedCornerShape(6.dp))
+                        .background(theme.buttonSurface, RoundedCornerShape(6.dp))
+                        .border(1.dp, theme.buttonBorder, RoundedCornerShape(6.dp))
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                 )
                 Row(
@@ -145,7 +144,7 @@ fun SequenceSaveDialog(
                     horizontalArrangement = Arrangement.End,
                 ) {
                     TextButton(onClick = onDismiss) {
-                        Text("Cancel", color = Color.Black)
+                        Text("Cancel", color = theme.text)
                     }
                     TextButton(
                         onClick = { onConfirm(name.trim()) },
@@ -153,7 +152,7 @@ fun SequenceSaveDialog(
                     ) {
                         Text(
                             "Save",
-                            color = if (canSave) Color.Black else Color.Black.copy(alpha = 0.4f),
+                            color = if (canSave) theme.text else theme.text.copy(alpha = 0.4f),
                         )
                     }
                 }
@@ -169,12 +168,13 @@ fun SequenceLoadDialog(
     onSelect: (SavedSequence) -> Unit,
     onDelete: (SavedSequence) -> Unit,
 ) {
+    val theme = currentAppTheme()
     val sorted = remember(savedSequences) {
         savedSequences.sortedBy { it.name.lowercase() }
     }
 
     Dialog(onDismissRequest = onDismiss) {
-        Surface(color = DialogSurfaceColor) {
+        Surface(color = theme.dialogSurface) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -182,14 +182,14 @@ fun SequenceLoadDialog(
             ) {
                 Text(
                     text = "Load sequence",
-                    color = Color.Black,
+                    color = theme.text,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
                 )
                 if (sorted.isEmpty()) {
                     Text(
                         text = "No saved sequences",
-                        color = Color.Black.copy(alpha = 0.6f),
+                        color = theme.text.copy(alpha = 0.6f),
                         fontSize = 18.sp,
                         modifier = Modifier.padding(top = 12.dp),
                     )
@@ -217,7 +217,7 @@ fun SequenceLoadDialog(
                     horizontalArrangement = Arrangement.End,
                 ) {
                     TextButton(onClick = onDismiss) {
-                        Text("Cancel", color = Color.Black)
+                        Text("Cancel", color = theme.text)
                     }
                 }
             }
@@ -231,6 +231,7 @@ private fun SavedSequenceListRow(
     onSelect: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    val theme = currentAppTheme()
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -243,19 +244,19 @@ private fun SavedSequenceListRow(
             Icon(
                 imageVector = Icons.Default.Delete,
                 contentDescription = "Delete saved sequence",
-                tint = Color.Black,
+                tint = theme.iconTint,
             )
         }
         Text(
             text = saved.name,
-            color = Color.Black,
+            color = theme.text,
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier
                 .weight(1f)
                 .clickable(onClick = onSelect)
-                .background(Color.White, RoundedCornerShape(6.dp))
-                .border(1.dp, Color.Black, RoundedCornerShape(6.dp))
+                .background(theme.buttonSurface, RoundedCornerShape(6.dp))
+                .border(1.dp, theme.buttonBorder, RoundedCornerShape(6.dp))
                 .padding(horizontal = 12.dp, vertical = 10.dp),
         )
     }

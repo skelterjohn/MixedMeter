@@ -191,9 +191,10 @@ private fun CircleOverlayLabel(
     positionPx: Offset,
     modifier: Modifier = Modifier,
 ) {
+    val theme = currentAppTheme()
     Text(
         text = text,
-        color = Color.Black,
+        color = theme.text,
         fontSize = 11.sp,
         modifier = modifier.centeredAt(positionPx),
     )

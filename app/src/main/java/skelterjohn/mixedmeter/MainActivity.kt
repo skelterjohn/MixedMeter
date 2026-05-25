@@ -159,8 +159,14 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            MixedMeterTheme {
-                val context = LocalContext.current
+            val context = LocalContext.current
+            val themeSetting by remember {
+                context.dataStore.data
+                    .map { preferences -> preferences[THEME_KEY] ?: DEFAULT_THEME }
+            }.collectAsState(initial = DEFAULT_THEME)
+
+            MixedMeterTheme(themeName = themeSetting) {
+                val theme = currentAppTheme()
                 val scope = rememberCoroutineScope()
                 var tempoUnits by remember { mutableFloatStateOf(180f) } // 120 BPM = 180 units
                 var circleCenter by remember { mutableStateOf(Offset.Zero) }
@@ -498,7 +504,7 @@ class MainActivity : ComponentActivity() {
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
-                    containerColor = Color.Gray
+                    containerColor = theme.background
                 ) { innerPadding ->
                     val focusManager = LocalFocusManager.current
                     val circleRadiusPx = with(LocalDensity.current) { 100.dp.toPx() }
@@ -616,7 +622,7 @@ class MainActivity : ComponentActivity() {
                                             Icon(
                                                 imageVector = Icons.Default.Delete,
                                                 contentDescription = "Remove Time Signature",
-                                                tint = Color.Black,
+                                                tint = theme.iconTint,
                                             )
                                         }
                                     }
@@ -761,14 +767,14 @@ class MainActivity : ComponentActivity() {
                             ) {
                                 Text(
                                     text = bpm.toInt().toString(),
-                                    color = Color.Black,
+                                    color = theme.text,
                                     fontSize = 48.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Box {
                                     Text(
                                         text = " = $selectedNote",
-                                        color = Color.Black,
+                                        color = theme.text,
                                         fontSize = 48.sp,
                                         fontWeight = FontWeight.Bold,
                                         modifier = Modifier.clickable { noteDropdownExpanded = true }
@@ -779,7 +785,7 @@ class MainActivity : ComponentActivity() {
                                     ) {
                                         noteOptions.forEach { note ->
                                             DropdownMenuItem(
-                                                text = { Text(note, fontSize = 32.sp) },
+                                                text = { Text(note, fontSize = 32.sp, color = DropdownMenuTextColor) },
                                                 onClick = {
                                                     selectedNote = note
                                                     noteDropdownExpanded = false
@@ -932,7 +938,7 @@ private fun TimeSignatureSelectorCell(
             ) {
                 if (index > 0) {
                     DropdownMenuItem(
-                        text = { Text("Move Left") },
+                        text = { Text("Move Left", color = DropdownMenuTextColor) },
                         onClick = {
                             onMoveLeft()
                             showMenu = false
@@ -941,7 +947,7 @@ private fun TimeSignatureSelectorCell(
                 }
                 if (index < timeSignatureCount - 1) {
                     DropdownMenuItem(
-                        text = { Text("Move Right") },
+                        text = { Text("Move Right", color = DropdownMenuTextColor) },
                         onClick = {
                             onMoveRight()
                             showMenu = false
@@ -949,7 +955,7 @@ private fun TimeSignatureSelectorCell(
                     )
                 }
                 DropdownMenuItem(
-                    text = { Text("Remove") },
+                    text = { Text("Remove", color = DropdownMenuTextColor) },
                     onClick = {
                         onRemove()
                         showMenu = false
@@ -960,8 +966,6 @@ private fun TimeSignatureSelectorCell(
     }
 }
 
-private val MeterInsertButtonSurface = Color(0xFFAEAEAE)
-
 @Composable
 private fun InsertTimeSignatureButton(
     enabled: Boolean,
@@ -969,21 +973,22 @@ private fun InsertTimeSignatureButton(
     contentDescription: String,
     modifier: Modifier = Modifier,
 ) {
+    val theme = currentAppTheme()
     Box(
         modifier = modifier
             .padding(horizontal = 2.dp)
             .alpha(if (enabled) 1f else 0.3f)
             .shadow(2.dp, RoundedCornerShape(5))
             .size(20.dp)
-            .background(MeterInsertButtonSurface, RoundedCornerShape(5))
-            .border(1.dp, Color.Black, RoundedCornerShape(5))
+            .background(theme.buttonSurface, RoundedCornerShape(5))
+            .border(1.dp, theme.buttonBorder, RoundedCornerShape(5))
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
             imageVector = Icons.Default.Add,
             contentDescription = contentDescription,
-            tint = Color.Black,
+            tint = theme.iconTint,
             modifier = Modifier.size(14.dp),
         )
     }
@@ -997,6 +1002,7 @@ fun TimeSignatureSelector(
     onDenominatorChange: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val theme = currentAppTheme()
     var expanded by remember { mutableStateOf(false) }
     var hasNumeratorFocus by remember { mutableStateOf(false) }
     var numeratorEditText by remember(numerator) { mutableStateOf(numerator.toString()) }
@@ -1046,7 +1052,7 @@ fun TimeSignatureSelector(
                 fontSize = 48.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center,
-                color = Color.Black
+                color = theme.text
             ),
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Number,
@@ -1077,7 +1083,7 @@ fun TimeSignatureSelector(
                                 fontSize = 48.sp,
                                 fontWeight = FontWeight.Bold,
                                 textAlign = TextAlign.Center,
-                                color = Color.Black.copy(alpha = 0.3f)
+                                color = theme.text.copy(alpha = 0.3f)
                             )
                         )
                     }
@@ -1092,7 +1098,7 @@ fun TimeSignatureSelector(
                 text = if (denominator == 0) "4" else denominator.toString(),
                 fontSize = 48.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.Black,
+                color = theme.text,
                 textAlign = TextAlign.Center,
                 modifier = Modifier
                     .widthIn(min = 40.dp)
@@ -1104,7 +1110,7 @@ fun TimeSignatureSelector(
             ) {
                 denominatorOptions.forEach { option ->
                     DropdownMenuItem(
-                        text = { Text(option.toString(), fontSize = 32.sp) },
+                        text = { Text(option.toString(), fontSize = 32.sp, color = DropdownMenuTextColor) },
                         onClick = {
                             onDenominatorChange(option)
                             expanded = false
