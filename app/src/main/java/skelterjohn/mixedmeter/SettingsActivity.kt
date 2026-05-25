@@ -178,26 +178,6 @@ class SettingsActivity : ComponentActivity() {
 
                         StringSettingDropdown(
 
-                            label = "Theme",
-
-                            options = THEME_OPTIONS,
-
-                            selectedValue = themeSetting,
-
-                            onSelect = { value ->
-
-                                scope.launch {
-
-                                    dataStore.edit { it[THEME_KEY] = value }
-
-                                }
-
-                            },
-
-                        )
-
-                        StringSettingDropdown(
-
                             label = "Beat tone",
 
                             options = TONE_OPTIONS,
@@ -214,8 +194,6 @@ class SettingsActivity : ComponentActivity() {
 
                             },
 
-                            modifier = Modifier.padding(top = 24.dp),
-
                         )
 
                         StringSettingDropdown(
@@ -231,6 +209,28 @@ class SettingsActivity : ComponentActivity() {
                                 scope.launch {
 
                                     dataStore.edit { it[LEAD_TONE_KEY] = value }
+
+                                }
+
+                            },
+
+                            modifier = Modifier.padding(top = 24.dp),
+
+                        )
+
+                        StringSettingDropdown(
+
+                            label = "Theme",
+
+                            options = THEME_OPTIONS,
+
+                            selectedValue = themeSetting,
+
+                            onSelect = { value ->
+
+                                scope.launch {
+
+                                    dataStore.edit { it[THEME_KEY] = value }
 
                                 }
 
