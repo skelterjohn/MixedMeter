@@ -685,7 +685,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
                                 dragStartedInCircle = isInCircle(startOffset)
                                 percentAdjustActive = false
                                 totalAngularDrag = 0f
-                                gesturePercent = currentSequencePercent.value
+                                gesturePercent = resolvedSequencePercent(currentSequencePercent.value)
                                 lastPointerAngle = pointerAngleDegrees(circleCenter, startOffset)
                             },
                             onDragEnd = {
@@ -709,20 +709,20 @@ private fun SequenceScreen(onBack: () -> Unit) {
                                 if (dragStartedInCircle) {
                                     if (!inCircle) return@detectDragGestures
                                     percentAdjustActive = true
-                                    gesturePercent = (
+                                    gesturePercent = resolvedSequencePercent(
                                         gesturePercent +
-                                            percentChangeForAngleDelta(delta, gesturePercent)
-                                        ).coerceIn(PercentDialMin, PercentDialMax)
+                                            percentChangeForAngleDelta(delta, gesturePercent),
+                                    )
                                     sequencePercent = gesturePercent
                                     return@detectDragGestures
                                 }
                                 if (!percentAdjustActive) {
                                     percentAdjustActive = true
                                 }
-                                gesturePercent = (
+                                gesturePercent = resolvedSequencePercent(
                                     gesturePercent +
-                                        percentChangeForAngleDelta(delta, gesturePercent)
-                                    ).coerceIn(PercentDialMin, PercentDialMax)
+                                        percentChangeForAngleDelta(delta, gesturePercent),
+                                )
                                 sequencePercent = gesturePercent
                             },
                         )

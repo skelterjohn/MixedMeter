@@ -51,6 +51,9 @@ const val PercentDialMin = 25f
 const val PercentDialMax = 200f
 const val PercentDialMid = 100f
 
+/** ± this many points around [PercentDialMid] resolve to exactly 100%. */
+const val PercentDialSnapToMidBuffer = 1f
+
 /** Compose degrees: straight up — [PercentDialMid] on the sequence percent dial. */
 const val PercentDialStraightUpAngle = 270f
 
@@ -88,8 +91,15 @@ fun bpmChangeForAngleDelta(angleDeltaDegrees: Float): Float {
     return angleDeltaDegrees / BpmDialSweepAngle * (BpmDialMaxBpm - BpmDialMinBpm)
 }
 
+fun resolvedSequencePercent(percent: Float): Float {
+    val clamped = percent.coerceIn(PercentDialMin, PercentDialMax)
+    val low = PercentDialMid - PercentDialSnapToMidBuffer
+    val high = PercentDialMid + PercentDialSnapToMidBuffer
+    return if (clamped in low..high) PercentDialMid else clamped
+}
+
 fun percentToDialAngle(percent: Float): Float {
-    val p = percent.coerceIn(PercentDialMin, PercentDialMax)
+    val p = resolvedSequencePercent(percent)
     return if (p <= PercentDialMid) {
         val ratio = (p - PercentDialMin) / (PercentDialMid - PercentDialMin)
         BpmDialStartAngle + ratio * PercentDialLowSweep
