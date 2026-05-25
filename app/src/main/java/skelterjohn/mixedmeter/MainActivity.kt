@@ -1067,7 +1067,7 @@ fun TimeSignatureSelector(
                 .onFocusChanged { focusState ->
                     hasNumeratorFocus = focusState.isFocused
                     if (focusState.isFocused) {
-                        numeratorEditText = numerator.toString()
+                        numeratorEditText = ""
                     } else {
                         val parsed = numeratorEditText.toIntOrNull()?.takeIf { it in 1..999 }
                         onNumeratorChange(parsed ?: numerator.coerceAtLeast(1))
