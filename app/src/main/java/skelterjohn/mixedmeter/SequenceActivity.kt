@@ -20,6 +20,9 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Save
@@ -96,6 +99,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
     var workspaceBaseline by remember { mutableStateOf<WorkspaceBaseline?>(null) }
     var wasItemsDirty by remember { mutableStateOf(false) }
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val density = LocalDensity.current
     val lazyListState = rememberLazyListState()
     var loopEnabled by remember { mutableStateOf(false) }
     var isOn by remember { mutableStateOf(false) }
@@ -384,8 +388,22 @@ private fun SequenceScreen(onBack: () -> Unit) {
         }
     }
 
-    val listBottomPadding = CircleDisplaySize + BottomNavEdgePadding * 2 + 56.dp
-    val listTopPadding = statusBarTop + 72.dp
+    LaunchedEffect(activeItemIndex, sequenceItems.size) {
+        if (sequenceItems.isEmpty()) return@LaunchedEffect
+        val index = activeItemIndex.coerceIn(sequenceItems.indices)
+        var attempts = 0
+        while (lazyListState.layoutInfo.viewportSize.height == 0 && attempts < 50) {
+            delay(16)
+            attempts++
+        }
+        val layoutInfo = lazyListState.layoutInfo
+        val viewportHeight = layoutInfo.viewportSize.height
+        if (viewportHeight <= 0) return@LaunchedEffect
+        val itemHeight = layoutInfo.visibleItemsInfo.firstOrNull { it.index == index }?.size
+            ?: with(density) { 120.dp.roundToPx() }
+        val scrollOffset = -((viewportHeight - itemHeight) / 2).coerceAtLeast(0)
+        lazyListState.scrollToItem(index = index, scrollOffset = scrollOffset)
+    }
 
     if (showSaveDialog) {
         SequenceSaveDialog(
@@ -438,7 +456,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
         )
     }
 
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Gray),
@@ -448,7 +466,6 @@ private fun SequenceScreen(onBack: () -> Unit) {
             onNameChange = { sequenceName = it },
             showUntitled = showUntitled,
             modifier = Modifier
-                .align(Alignment.TopCenter)
                 .fillMaxWidth()
                 .padding(
                     top = statusBarTop + 8.dp,
@@ -456,14 +473,18 @@ private fun SequenceScreen(onBack: () -> Unit) {
                     end = 12.dp,
                 ),
         )
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            state = lazyListState,
-            contentPadding = PaddingValues(
-                top = listTopPadding,
-                bottom = listBottomPadding,
-            ),
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
         ) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RectangleShape),
+                state = lazyListState,
+                contentPadding = PaddingValues(vertical = 8.dp),
+            ) {
             itemsIndexed(sequenceItems, key = { _, item -> item.id }) { index, item ->
                 val rowActiveRepeatIndex = if (index == activeItemIndex) activeRepeatIndex else null
                 ReorderableItem(reorderableState, key = item.id) { isDragging ->
@@ -524,11 +545,31 @@ private fun SequenceScreen(onBack: () -> Unit) {
                     )
                 }
             }
+            }
+            if (sequenceItems.isNotEmpty()) {
+                SequenceItemMap(
+                    itemCount = sequenceItems.size,
+                    activeIndex = activeItemIndex.coerceIn(sequenceItems.indices),
+                    onItemSelected = { index ->
+                        if (index != activeItemIndex) {
+                            activeRepeatIndex = null
+                        }
+                        activeItemIndex = index
+                        val prerender = sequencePrerender
+                        val segment = prerender?.let { resolveStartSegment(it) }
+                        if (isOn && prerender != null && segment != null) {
+                            seekToSegment(segment)
+                        }
+                    },
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 4.dp),
+                )
+            }
         }
 
         Row(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .padding(BottomNavEdgePadding),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -569,3 +610,4 @@ private fun SequenceScreen(onBack: () -> Unit) {
         }
     }
 }
+
