@@ -90,7 +90,7 @@ fun CircleDisplay(
                 )
                 rotate(degrees = currentAngle - 270f) {
                     drawLine(
-                        color = if (isOn) Color.White else Color.White.copy(alpha = 0.5f),
+                        color = Color.White,
                         start = center,
                         end = Offset(x = size.width / 2, y = -2.dp.toPx()),
                         strokeWidth = 8.dp.toPx(),
