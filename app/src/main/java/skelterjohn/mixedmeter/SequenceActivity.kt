@@ -9,6 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -19,6 +20,9 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Text
@@ -53,6 +57,11 @@ import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 import skelterjohn.mixedmeter.ui.theme.MixedMeterTheme
 
+private data class WorkspaceBaseline(
+    val name: String,
+    val itemsKey: String,
+)
+
 class SequenceActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -78,6 +87,14 @@ private fun SequenceScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val sequenceItems by context.sequenceItemsFlow().collectAsState(initial = emptyList())
+    val savedSequences by context.savedSequencesFlow().collectAsState(initial = emptyList())
+    val hasSavedSequence = savedSequences.isNotEmpty()
+    val storedSequenceName by context.sequenceNameFlow().collectAsState(initial = "")
+    var sequenceName by remember { mutableStateOf("") }
+    var showSaveDialog by remember { mutableStateOf(false) }
+    var showLoadDialog by remember { mutableStateOf(false) }
+    var workspaceBaseline by remember { mutableStateOf<WorkspaceBaseline?>(null) }
+    var wasItemsDirty by remember { mutableStateOf(false) }
     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val lazyListState = rememberLazyListState()
     var loopEnabled by remember { mutableStateOf(false) }
@@ -90,6 +107,58 @@ private fun SequenceScreen(onBack: () -> Unit) {
     var prerenderToken by remember { mutableIntStateOf(0) }
     var sequencePrerender by remember { mutableStateOf<SequencePrerender?>(null) }
     val playbackHolder = remember { mutableStateOf<SequencePlaybackSlot?>(null) }
+
+    LaunchedEffect(storedSequenceName, sequenceItems) {
+        if (workspaceBaseline == null) {
+            workspaceBaseline = WorkspaceBaseline(
+                name = storedSequenceName,
+                itemsKey = sequenceItemsContentKey(sequenceItems),
+            )
+        }
+    }
+
+    LaunchedEffect(storedSequenceName) {
+        if (!wasItemsDirty) {
+            sequenceName = storedSequenceName
+        }
+    }
+
+    val itemsDirty by remember {
+        derivedStateOf {
+            val baseline = workspaceBaseline ?: return@derivedStateOf false
+            sequenceItemsContentKey(sequenceItems) != baseline.itemsKey
+        }
+    }
+
+    val showUntitled by remember {
+        derivedStateOf {
+            itemsDirty &&
+                sequenceName.isEmpty() &&
+                workspaceBaseline?.name?.isNotEmpty() == true
+        }
+    }
+
+    LaunchedEffect(itemsDirty, workspaceBaseline) {
+        val baseline = workspaceBaseline ?: return@LaunchedEffect
+        if (itemsDirty && !wasItemsDirty && baseline.name.isNotEmpty()) {
+            sequenceName = ""
+            context.setSequenceName("")
+        } else if (!itemsDirty && sequenceName.isEmpty() && baseline.name.isNotEmpty()) {
+            sequenceName = baseline.name
+            context.setSequenceName(baseline.name)
+        }
+        wasItemsDirty = itemsDirty
+    }
+
+    LaunchedEffect(sequenceName, itemsDirty) {
+        if (itemsDirty) return@LaunchedEffect
+        if (sequenceName == storedSequenceName) return@LaunchedEffect
+        delay(400)
+        if (!itemsDirty && sequenceName != storedSequenceName) {
+            context.setSequenceName(sequenceName)
+            workspaceBaseline = workspaceBaseline?.copy(name = sequenceName)
+        }
+    }
 
     val beatToneSetting by remember {
         context.dataStore.data.map { preferences -> preferences[TONE_KEY] ?: "bip" }
@@ -315,18 +384,83 @@ private fun SequenceScreen(onBack: () -> Unit) {
         }
     }
 
-    val listBottomPadding = CircleDisplaySize + BottomNavEdgePadding * 2
+    val listBottomPadding = CircleDisplaySize + BottomNavEdgePadding * 2 + 56.dp
+    val listTopPadding = statusBarTop + 72.dp
+
+    if (showSaveDialog) {
+        SequenceSaveDialog(
+            initialName = sequenceName,
+            onDismiss = { showSaveDialog = false },
+            onConfirm = { name ->
+                showSaveDialog = false
+                scope.launch {
+                    if (context.saveNamedSequence(name, sequenceItems)) {
+                        sequenceName = name
+                        workspaceBaseline = WorkspaceBaseline(
+                            name = name,
+                            itemsKey = sequenceItemsContentKey(sequenceItems),
+                        )
+                        wasItemsDirty = false
+                    }
+                }
+            },
+        )
+    }
+
+    if (showLoadDialog) {
+        SequenceLoadDialog(
+            savedSequences = savedSequences,
+            onDismiss = { showLoadDialog = false },
+            onSelect = { saved ->
+                showLoadDialog = false
+                scope.launch {
+                    pausePlayback()
+                    context.loadNamedSequenceIntoWorkspace(saved)
+                    sequenceName = saved.name
+                    workspaceBaseline = WorkspaceBaseline(
+                        name = saved.name,
+                        itemsKey = sequenceItemsContentKey(saved.items),
+                    )
+                    wasItemsDirty = false
+                    activeItemIndex = 0
+                    activeRepeatIndex = null
+                    sequencePosition = 0f
+                }
+            },
+            onDelete = { saved ->
+                scope.launch {
+                    context.deleteSavedSequence(saved.id)
+                    if (savedSequences.size <= 1) {
+                        showLoadDialog = false
+                    }
+                }
+            },
+        )
+    }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Gray),
     ) {
+        SequenceNameField(
+            name = sequenceName,
+            onNameChange = { sequenceName = it },
+            showUntitled = showUntitled,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .padding(
+                    top = statusBarTop + 8.dp,
+                    start = 12.dp,
+                    end = 12.dp,
+                ),
+        )
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             state = lazyListState,
             contentPadding = PaddingValues(
-                top = statusBarTop + 32.dp,
+                top = listTopPadding,
                 bottom = listBottomPadding,
             ),
         ) {
@@ -400,13 +534,31 @@ private fun SequenceScreen(onBack: () -> Unit) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.Bottom,
         ) {
-            BottomNavIconButton(onClick = {
-                pausePlayback()
-                activeRepeatIndex = null
-                sequencePosition = 0f
-                onBack()
-            }) {
-                ArrowDropDownNavIcon()
+            Column(
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                horizontalAlignment = Alignment.Start,
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    SequenceNavIconButton(
+                        icon = Icons.Default.Save,
+                        contentDescription = "Save sequence",
+                        onClick = { showSaveDialog = true },
+                    )
+                    SequenceNavIconButton(
+                        icon = Icons.Default.FolderOpen,
+                        contentDescription = "Load sequence",
+                        enabled = hasSavedSequence,
+                        onClick = { showLoadDialog = true },
+                    )
+                }
+                BottomNavIconButton(onClick = {
+                    pausePlayback()
+                    activeRepeatIndex = null
+                    sequencePosition = 0f
+                    onBack()
+                }) {
+                    ArrowDropDownNavIcon()
+                }
             }
             CircleDisplay(
                 bpm = displayBpm,

@@ -1,13 +1,27 @@
 package skelterjohn.mixedmeter
 
 import android.content.Context
+import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.util.UUID
 
 private val SEQUENCE_ITEMS_KEY = stringPreferencesKey("sequence_items")
+private val SEQUENCE_NAME_KEY = stringPreferencesKey("sequence_name")
+private val SAVED_SEQUENCES_KEY = stringPreferencesKey("saved_sequences")
+/** @deprecated Migrated into [SAVED_SEQUENCES_KEY] on read. */
+private val SAVED_SEQUENCE_ITEMS_KEY = stringPreferencesKey("saved_sequence_items")
+
+private const val SAVED_RECORD_SEP = "\n###\n"
+
+data class SavedSequence(
+    val id: String,
+    val name: String,
+    val items: List<SequenceItem>,
+)
 
 sealed class SequenceItem {
     abstract val id: String
@@ -83,6 +97,107 @@ suspend fun Context.removeSequenceItemById(id: String) {
     }
 }
 
+fun Context.sequenceNameFlow(): Flow<String> {
+    return dataStore.data.map { preferences ->
+        preferences[SEQUENCE_NAME_KEY] ?: ""
+    }
+}
+
+suspend fun Context.setSequenceName(name: String) {
+    dataStore.edit { preferences ->
+        preferences[SEQUENCE_NAME_KEY] = name.trim().take(80)
+    }
+}
+
+fun Context.savedSequencesFlow(): Flow<List<SavedSequence>> {
+    return dataStore.data.map { preferences -> decodeAllSavedSequences(preferences) }
+}
+
+fun Context.hasSavedSequenceFlow(): Flow<Boolean> {
+    return savedSequencesFlow().map { it.isNotEmpty() }
+}
+
+suspend fun Context.saveNamedSequence(name: String, items: List<SequenceItem>): Boolean {
+    val trimmed = name.trim().take(80)
+    if (trimmed.isEmpty()) return false
+    dataStore.edit { preferences ->
+        val current = decodeAllSavedSequences(preferences).toMutableList()
+        val existing = current.firstOrNull { it.name.equals(trimmed, ignoreCase = true) }
+        val id = existing?.id ?: newSequenceItemId()
+        current.removeAll { it.id == id }
+        current.add(SavedSequence(id = id, name = trimmed, items = items))
+        preferences[SAVED_SEQUENCES_KEY] = encodeSavedSequences(current)
+        preferences[SEQUENCE_NAME_KEY] = trimmed
+        preferences.remove(SAVED_SEQUENCE_ITEMS_KEY)
+    }
+    return true
+}
+
+suspend fun Context.loadNamedSequenceIntoWorkspace(saved: SavedSequence) {
+    dataStore.edit { preferences ->
+        preferences[SEQUENCE_ITEMS_KEY] = encodeSequenceItems(saved.items)
+        preferences[SEQUENCE_NAME_KEY] = saved.name
+    }
+}
+
+suspend fun Context.deleteSavedSequence(id: String) {
+    dataStore.edit { preferences ->
+        val updated = decodeAllSavedSequences(preferences).filterNot { it.id == id }
+        if (updated.isEmpty()) {
+            preferences.remove(SAVED_SEQUENCES_KEY)
+            preferences.remove(SAVED_SEQUENCE_ITEMS_KEY)
+        } else {
+            preferences[SAVED_SEQUENCES_KEY] = encodeSavedSequences(updated)
+            preferences.remove(SAVED_SEQUENCE_ITEMS_KEY)
+        }
+    }
+}
+
+private fun decodeAllSavedSequences(preferences: Preferences): List<SavedSequence> {
+    val multi = decodeSavedSequences(preferences[SAVED_SEQUENCES_KEY] ?: "")
+    if (multi.isNotEmpty()) return multi
+    val legacy = decodeSequenceItems(preferences[SAVED_SEQUENCE_ITEMS_KEY] ?: "")
+    if (legacy.isEmpty()) return emptyList()
+    return listOf(
+        SavedSequence(
+            id = newSequenceItemId(),
+            name = "Saved",
+            items = legacy,
+        ),
+    )
+}
+
+private fun encodeSavedSequences(records: List<SavedSequence>): String {
+    if (records.isEmpty()) return ""
+    return records.joinToString(SAVED_RECORD_SEP) { record ->
+        buildString {
+            append(record.id)
+            append('\n')
+            append(record.name)
+            append('\n')
+            append(encodeSequenceItems(record.items))
+        }
+    }
+}
+
+private fun decodeSavedSequences(raw: String): List<SavedSequence> {
+    if (raw.isBlank()) return emptyList()
+    return raw.split(SAVED_RECORD_SEP).mapNotNull { block ->
+        val trimmed = block.trim()
+        if (trimmed.isEmpty()) return@mapNotNull null
+        val newline = trimmed.indexOf('\n')
+        if (newline < 0) return@mapNotNull null
+        val id = trimmed.substring(0, newline).trim()
+        val rest = trimmed.substring(newline + 1)
+        val nameEnd = rest.indexOf('\n')
+        if (nameEnd < 0) return@mapNotNull null
+        val name = rest.substring(0, nameEnd).trim()
+        val itemsRaw = rest.substring(nameEnd + 1)
+        if (id.isEmpty() || name.isEmpty()) return@mapNotNull null
+        SavedSequence(id = id, name = name, items = decodeSequenceItems(itemsRaw))
+    }
+}
+
 suspend fun Context.updateSequenceItemRepeatCount(id: String, repeatCount: Int) {
     val count = repeatCount.coerceAtLeast(1)
     dataStore.edit { preferences ->
@@ -97,6 +212,8 @@ suspend fun Context.updateSequenceItemRepeatCount(id: String, repeatCount: Int) 
         preferences[SEQUENCE_ITEMS_KEY] = encodeSequenceItems(updated)
     }
 }
+
+fun sequenceItemsContentKey(items: List<SequenceItem>): String = encodeSequenceItems(items)
 
 private fun encodeSequenceItems(items: List<SequenceItem>): String {
     return items.joinToString("\n") { encodeSequenceItem(it) }
