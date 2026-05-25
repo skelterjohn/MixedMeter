@@ -122,7 +122,7 @@ val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "se
 private val TEMPO_UNITS_KEY = floatPreferencesKey("tempo_units")
 val TONE_KEY = stringPreferencesKey("tone_setting")
 val LEAD_TONE_KEY = stringPreferencesKey("lead_tone_setting")
-val TONE_OPTIONS = listOf("Bop", "Bip")
+val TONE_OPTIONS = listOf("Bop", "Bip", "Snap", "Thump")
 
 const val DEFAULT_TONE = "Bop"
 private val SELECTED_NOTE_KEY = stringPreferencesKey("selected_note")
