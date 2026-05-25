@@ -792,6 +792,7 @@ class MainActivity : ComponentActivity() {
                                 isOn = isOn,
                                 beatProgress = activeBoxProgress,
                                 onToggle = toggleMetronome,
+                                showBpmRangeLabels = true,
                                 modifier = Modifier.onGloballyPositioned { coords ->
                                     boxLayoutCoordinates?.let { boxCoords ->
                                         // Calculate center relative to the parent Box
