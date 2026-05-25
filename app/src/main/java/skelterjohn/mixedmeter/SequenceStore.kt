@@ -39,6 +39,7 @@ sealed class SequenceItem {
         val bpm: Float,
         val selectedNote: String,
         val timeSignatures: List<TimeSignature>,
+        val beatClickActive: List<List<Boolean>> = emptyList(),
         override val repeatCount: Int = 1,
     ) : SequenceItem()
 }
@@ -49,6 +50,7 @@ fun metronomeSnapshot(
     bpm: Float,
     selectedNote: String,
     timeSignatures: List<TimeSignature>,
+    beatClickActive: List<List<Boolean>> = emptyList(),
 ): SequenceItem {
     return if (timeSignatures.isEmpty()) {
         SequenceItem.PlainBpm(bpm = bpm, selectedNote = selectedNote)
@@ -57,6 +59,7 @@ fun metronomeSnapshot(
             bpm = bpm,
             selectedNote = selectedNote,
             timeSignatures = timeSignatures,
+            beatClickActive = reconcileBeatClickActive(beatClickActive, timeSignatures),
         )
     }
 }
@@ -236,14 +239,20 @@ private fun encodeSequenceItem(item: SequenceItem): String {
             item.repeatCount.toString(),
         ).joinToString("|")
 
-        is SequenceItem.MeterPattern -> listOf(
-            "m",
-            item.id,
-            item.bpm.toString(),
-            item.selectedNote,
-            item.timeSignatures.joinToString(",") { "${it.numerator}/${it.denominator}" },
-            item.repeatCount.toString(),
-        ).joinToString("|")
+        is SequenceItem.MeterPattern -> {
+            val fields = mutableListOf(
+                "m",
+                item.id,
+                item.bpm.toString(),
+                item.selectedNote,
+                item.timeSignatures.joinToString(",") { "${it.numerator}/${it.denominator}" },
+                item.repeatCount.toString(),
+            )
+            if (item.beatClickActive.any { section -> section.any { !it } }) {
+                fields.add(encodeBeatClickActive(item.beatClickActive))
+            }
+            fields.joinToString("|")
+        }
     }
 }
 
@@ -321,11 +330,17 @@ private fun decodeMeterPattern(parts: List<String>): SequenceItem.MeterPattern? 
         }
     if (timeSignatures.isEmpty()) return null
 
+    val beatClickActive = reconcileBeatClickActive(
+        if (parts.size >= 7) decodeBeatClickActive(parts[6]) else emptyList(),
+        timeSignatures,
+    )
+
     return SequenceItem.MeterPattern(
         id = id,
         bpm = bpm,
         selectedNote = selectedNote,
         timeSignatures = timeSignatures,
+        beatClickActive = beatClickActive,
         repeatCount = repeatCount,
     )
 }

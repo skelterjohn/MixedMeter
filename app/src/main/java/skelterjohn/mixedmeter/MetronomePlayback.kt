@@ -29,15 +29,19 @@ fun scaledSequenceBpm(baseBpm: Float, tempoPercent: Float): Float =
     baseBpm * tempoPercent / 100f
 
 fun SequenceItem.metronomeSchedule(tempoPercent: Float = 100f): MetronomeClickSchedule {
-    val (itemBpm, note, signatures) = when (this) {
-        is SequenceItem.PlainBpm -> Triple(bpm, selectedNote, emptyList())
-        is SequenceItem.MeterPattern -> Triple(bpm, selectedNote, timeSignatures)
+    return when (this) {
+        is SequenceItem.PlainBpm -> buildMetronomeClickSchedule(
+            bpm = scaledSequenceBpm(bpm, tempoPercent),
+            selectedNoteValue = noteValueForSymbol(selectedNote),
+            timeSignatures = emptyList(),
+        )
+        is SequenceItem.MeterPattern -> buildMetronomeClickSchedule(
+            bpm = scaledSequenceBpm(bpm, tempoPercent),
+            selectedNoteValue = noteValueForSymbol(selectedNote),
+            timeSignatures = timeSignatures,
+            beatClickActive = reconcileBeatClickActive(beatClickActive, timeSignatures),
+        )
     }
-    return buildMetronomeClickSchedule(
-        bpm = scaledSequenceBpm(itemBpm, tempoPercent),
-        selectedNoteValue = noteValueForSymbol(note),
-        timeSignatures = signatures,
-    )
 }
 
 fun SequenceItem.displayBpm(): Float = when (this) {

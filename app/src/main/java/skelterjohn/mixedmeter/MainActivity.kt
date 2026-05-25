@@ -68,7 +68,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -127,8 +130,33 @@ val TONE_OPTIONS = listOf("Bop", "Bip", "Snap", "Thump")
 const val DEFAULT_TONE = "Bop"
 private val SELECTED_NOTE_KEY = stringPreferencesKey("selected_note")
 private val TIME_SIGNATURES_KEY = stringPreferencesKey("time_signatures")
+private val BEAT_CLICK_ACTIVE_KEY = stringPreferencesKey("beat_click_active")
 
 data class TimeSignature(val numerator: Int, val denominator: Int)
+
+private fun parseStoredTimeSignatures(saved: String): List<TimeSignature> {
+    if (saved.isBlank()) return emptyList()
+    return saved.split(Regex("[;|]+"))
+        .filter { it.contains("/") }
+        .map { segment ->
+            val parts = segment.split("/")
+            TimeSignature(
+                numerator = (parts.getOrNull(0)?.toIntOrNull() ?: 4).coerceIn(1, 999),
+                denominator = (parts.getOrNull(1)?.toIntOrNull() ?: 4).coerceIn(1, 999),
+            )
+        }
+        .take(4)
+}
+
+/** If beat-click data has more beats than the parsed numerator, trust the beat count. */
+private fun timeSignaturesAlignedWithBeatClick(
+    timeSignatures: List<TimeSignature>,
+    beatClickActive: List<List<Boolean>>,
+): List<TimeSignature> =
+    timeSignatures.mapIndexed { index, ts ->
+        val beatCount = beatClickActive.getOrNull(index)?.size ?: 0
+        if (beatCount > ts.numerator) ts.copy(numerator = beatCount) else ts
+    }
 
 private fun calculateBpm(tempoUnits: Float): Float {
     val interval = (tempoUnits / 10f).toInt()
@@ -174,6 +202,7 @@ class MainActivity : ComponentActivity() {
                 var isOn by remember { mutableStateOf(false) }
                 var playbackPosition by remember { mutableFloatStateOf(0f) }
                 var isLoaded by remember { mutableStateOf(false) }
+                var preferencesHydrated by remember { mutableStateOf(false) }
 
                 val bpm by remember {
                     derivedStateOf { calculateBpm(tempoUnits) }
@@ -184,7 +213,8 @@ class MainActivity : ComponentActivity() {
                 var selectedNote by remember { mutableStateOf("♩") }
 
                 var timeSignatures by remember { mutableStateOf(listOf<TimeSignature>()) }
-                
+                var beatClickActive by remember { mutableStateOf<List<List<Boolean>>>(emptyList()) }
+
                 var committedBpm by remember { mutableFloatStateOf(bpm) }
 
                 LaunchedEffect(Unit) {
@@ -197,15 +227,15 @@ class MainActivity : ComponentActivity() {
                     preferences[SELECTED_NOTE_KEY]?.let { savedNote ->
                         selectedNote = savedNote
                     }
+                    val savedBeatClickActive = preferences[BEAT_CLICK_ACTIVE_KEY]?.let(::decodeBeatClickActive)
+                        ?: emptyList()
                     preferences[TIME_SIGNATURES_KEY]?.let { saved ->
-                        if (saved.isNotEmpty()) {
-                            timeSignatures = saved.split(";").filter { it.contains("/") }.map {
-                                val parts = it.split("/")
-                                TimeSignature(parts[0].toIntOrNull() ?: 4, parts[1].toIntOrNull() ?: 4)
-                            }.take(4)
-                        }
+                        val parsed = parseStoredTimeSignatures(saved)
+                        timeSignatures = timeSignaturesAlignedWithBeatClick(parsed, savedBeatClickActive)
                     }
+                    beatClickActive = reconcileBeatClickActive(savedBeatClickActive, timeSignatures)
                     isLoaded = true
+                    preferencesHydrated = true
                 }
 
                 LaunchedEffect(committedBpm) {
@@ -225,10 +255,17 @@ class MainActivity : ComponentActivity() {
                 }
 
                 LaunchedEffect(timeSignatures) {
-                    if (isLoaded) {
-                        context.dataStore.edit { settings ->
-                            settings[TIME_SIGNATURES_KEY] = timeSignatures.joinToString(";") { "${it.numerator}/${it.denominator}" }
-                        }
+                    if (!preferencesHydrated) return@LaunchedEffect
+                    beatClickActive = reconcileBeatClickActive(beatClickActive, timeSignatures)
+                    context.dataStore.edit { settings ->
+                        settings[TIME_SIGNATURES_KEY] = timeSignatures.joinToString("|") { "${it.numerator}/${it.denominator}" }
+                    }
+                }
+
+                LaunchedEffect(beatClickActive) {
+                    if (!preferencesHydrated || timeSignatures.isEmpty()) return@LaunchedEffect
+                    context.dataStore.edit { settings ->
+                        settings[BEAT_CLICK_ACTIVE_KEY] = encodeBeatClickActive(beatClickActive)
                     }
                 }
 
@@ -252,6 +289,7 @@ class MainActivity : ComponentActivity() {
                             bpm = committedBpm,
                             selectedNoteValue = selectedNoteValue,
                             timeSignatures = timeSignatures,
+                            beatClickActive = beatClickActive,
                         )
                     }
                 }
@@ -326,6 +364,7 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(
                     committedBpm,
                     timeSignatures,
+                    beatClickActive,
                     selectedNote,
                     beatToneSetting,
                     leadToneSetting,
@@ -731,19 +770,35 @@ class MainActivity : ComponentActivity() {
                                             verticalArrangement = Arrangement.spacedBy(0.dp),
                                         ) {
                                             val num = ts.numerator
+                                            val inactiveBeatGrey = Color(0xFF808080)
                                             if (num > 0) {
                                                 repeat(num) { beatIndex ->
-                                                    val active = activeBeatBox
-                                                    val isActive = active?.sectionIndex == index &&
-                                                        active?.beatIndex == beatIndex
+                                                    val currentBeat = activeBeatBox
+                                                    val isCurrentBeat = currentBeat?.sectionIndex == index &&
+                                                        currentBeat?.beatIndex == beatIndex
+                                                    val clickActive = isBeatClickActive(
+                                                        beatClickActive,
+                                                        index,
+                                                        beatIndex,
+                                                    )
+                                                    val boxColor = when {
+                                                        !clickActive -> inactiveBeatGrey
+                                                        isCurrentBeat -> Color.White
+                                                        else -> Color.Black
+                                                    }
                                                     Box(
                                                         modifier = Modifier
                                                             .weight(1f)
                                                             .fillMaxSize()
-                                                            .background(
-                                                                if (isActive) Color.White else Color.Black,
-                                                            )
-                                                            .border(1.dp, Color.White),
+                                                            .background(boxColor)
+                                                            .border(1.dp, Color.White)
+                                                            .clickable {
+                                                                beatClickActive = toggleBeatClickActive(
+                                                                    beatClickActive,
+                                                                    index,
+                                                                    beatIndex,
+                                                                )
+                                                            },
                                                     )
                                                 }
                                             }
@@ -832,10 +887,11 @@ class MainActivity : ComponentActivity() {
                                     onClick = {
                                         scope.launch {
                                             context.appendSequenceItem(
-                                                SequenceItem.MeterPattern(
+                                                metronomeSnapshot(
                                                     bpm = committedBpm,
                                                     selectedNote = selectedNote,
                                                     timeSignatures = timeSignatures,
+                                                    beatClickActive = beatClickActive,
                                                 ),
                                             )
                                             context.startSequenceActivity()
@@ -920,18 +976,20 @@ private fun TimeSignatureSelectorCell(
         contentAlignment = Alignment.Center,
     ) {
         Box {
-            TimeSignatureSelector(
-                numerator = timeSignature.numerator,
-                onNumeratorChange = onNumeratorChange,
-                denominator = timeSignature.denominator,
-                onDenominatorChange = onDenominatorChange,
-                modifier = Modifier
+            key(timeSignature.numerator, timeSignature.denominator) {
+                TimeSignatureSelector(
+                    numerator = timeSignature.numerator,
+                    onNumeratorChange = onNumeratorChange,
+                    denominator = timeSignature.denominator,
+                    onDenominatorChange = onDenominatorChange,
+                    modifier = Modifier
                     .padding(horizontal = 0.dp)
                     .combinedClickable(
                         onClick = { /* normal clicks handled by children */ },
                         onLongClick = { showMenu = true },
                     ),
-            )
+                )
+            }
             DropdownMenu(
                 expanded = showMenu,
                 onDismissRequest = { showMenu = false },
@@ -1004,93 +1062,102 @@ fun TimeSignatureSelector(
 ) {
     val theme = currentAppTheme()
     var expanded by remember { mutableStateOf(false) }
-    var hasNumeratorFocus by remember { mutableStateOf(false) }
-    var numeratorEditText by remember(numerator) { mutableStateOf(numerator.toString()) }
+    var isEditingNumerator by remember { mutableStateOf(false) }
+    var numeratorEditText by remember { mutableStateOf("") }
+    val numeratorFocusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val denominatorOptions = listOf(1, 2, 4, 8, 16, 32)
+    val numeratorTextStyle = TextStyle(
+        fontSize = 48.sp,
+        fontWeight = FontWeight.Bold,
+        textAlign = TextAlign.Center,
+        color = theme.text,
+    )
 
-    fun finishNumeratorEdit() {
+    fun commitNumeratorEdit() {
+        val parsed = numeratorEditText.toIntOrNull()?.takeIf { it in 1..999 }
+        onNumeratorChange(parsed ?: numerator.coerceAtLeast(1))
+        isEditingNumerator = false
         keyboardController?.hide()
         focusManager.clearFocus()
     }
 
-    LaunchedEffect(numerator) {
-        if (!hasNumeratorFocus) {
-            numeratorEditText = numerator.toString()
+    LaunchedEffect(isEditingNumerator) {
+        if (isEditingNumerator) {
+            numeratorFocusRequester.requestFocus()
         }
     }
-
-    val numeratorFieldValue = if (hasNumeratorFocus) {
-        numeratorEditText
-    } else {
-        numerator.toString()
-    }
-    val showNumeratorPlaceholder = hasNumeratorFocus && numeratorEditText.isEmpty()
 
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy((-12).dp)
+        verticalArrangement = Arrangement.spacedBy((-8).dp),
     ) {
-        // Numerator
-        BasicTextField(
-            value = numeratorFieldValue,
-            onValueChange = { newText ->
-                if (!hasNumeratorFocus) return@BasicTextField
-                if (newText.contains('\n')) {
-                    finishNumeratorEdit()
-                    return@BasicTextField
-                }
-                val filtered = newText.filter { char -> char.isDigit() }
-                if (filtered.length <= 3) {
-                    numeratorEditText = filtered
-                }
-            },
-            singleLine = true,
-            textStyle = TextStyle(
-                fontSize = 48.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                color = theme.text
-            ),
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Number,
-                imeAction = ImeAction.Done,
-            ),
-            keyboardActions = KeyboardActions(
-                onDone = { finishNumeratorEdit() },
-            ),
+        // Numerator — static Text when idle so reload always shows the saved value
+        Box(
             modifier = Modifier
-                .width(IntrinsicSize.Min)
-                .widthIn(min = 40.dp)
-                .onFocusChanged { focusState ->
-                    hasNumeratorFocus = focusState.isFocused
-                    if (focusState.isFocused) {
+                .zIndex(1f)
+                .widthIn(min = 40.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (isEditingNumerator) {
+                val showPlaceholder = numeratorEditText.isEmpty()
+                BasicTextField(
+                    value = numeratorEditText,
+                    onValueChange = { newText ->
+                        if (newText.contains('\n')) {
+                            commitNumeratorEdit()
+                            return@BasicTextField
+                        }
+                        val filtered = newText.filter { char -> char.isDigit() }
+                        if (filtered.length <= 3) {
+                            numeratorEditText = filtered
+                        }
+                    },
+                    singleLine = true,
+                    textStyle = numeratorTextStyle,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number,
+                        imeAction = ImeAction.Done,
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = { commitNumeratorEdit() },
+                    ),
+                    modifier = Modifier
+                        .width(IntrinsicSize.Min)
+                        .widthIn(min = 40.dp)
+                        .focusRequester(numeratorFocusRequester)
+                        .onFocusChanged { focusState ->
+                            if (!focusState.isFocused && isEditingNumerator) {
+                                commitNumeratorEdit()
+                            }
+                        },
+                    decorationBox = { innerTextField ->
+                        Box(contentAlignment = Alignment.Center) {
+                            if (showPlaceholder) {
+                                Text(
+                                    text = "4",
+                                    style = numeratorTextStyle.copy(
+                                        color = theme.text.copy(alpha = 0.3f),
+                                    ),
+                                )
+                            }
+                            innerTextField()
+                        }
+                    },
+                )
+            } else {
+                Text(
+                    text = numerator.coerceAtLeast(1).toString(),
+                    style = numeratorTextStyle,
+                    modifier = Modifier.clickable {
                         numeratorEditText = ""
-                    } else {
-                        val parsed = numeratorEditText.toIntOrNull()?.takeIf { it in 1..999 }
-                        onNumeratorChange(parsed ?: numerator.coerceAtLeast(1))
-                        numeratorEditText = numerator.toString()
-                    }
-                },
-            decorationBox = { innerTextField ->
-                Box(contentAlignment = Alignment.Center) {
-                    if (showNumeratorPlaceholder) {
-                        Text(
-                            text = "4",
-                            style = TextStyle(
-                                fontSize = 48.sp,
-                                fontWeight = FontWeight.Bold,
-                                textAlign = TextAlign.Center,
-                                color = theme.text.copy(alpha = 0.3f)
-                            )
-                        )
-                    }
-                    innerTextField()
-                }
+                        isEditingNumerator = true
+                    },
+                )
             }
-        )
+        }
 
         // Denominator
         Box(contentAlignment = Alignment.Center) {

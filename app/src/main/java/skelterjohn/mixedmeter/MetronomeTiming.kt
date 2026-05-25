@@ -16,10 +16,55 @@ data class MetronomeClickSchedule(
     val beatPeriodNanos: Long,
 )
 
+/** Per-section beat click enabled; missing entries default to true. */
+fun reconcileBeatClickActive(
+    current: List<List<Boolean>>,
+    timeSignatures: List<TimeSignature>,
+): List<List<Boolean>> =
+    timeSignatures.mapIndexed { sectionIndex, ts ->
+        val num = ts.numerator.coerceAtLeast(0)
+        val section = current.getOrNull(sectionIndex)
+        List(num) { beatIndex -> section?.getOrNull(beatIndex) ?: true }
+    }
+
+fun isBeatClickActive(
+    beatClickActive: List<List<Boolean>>?,
+    sectionIndex: Int,
+    beatIndex: Int,
+): Boolean = beatClickActive?.getOrNull(sectionIndex)?.getOrNull(beatIndex) ?: true
+
+fun toggleBeatClickActive(
+    beatClickActive: List<List<Boolean>>,
+    sectionIndex: Int,
+    beatIndex: Int,
+): List<List<Boolean>> =
+    beatClickActive.mapIndexed { s, section ->
+        if (s != sectionIndex) {
+            section
+        } else {
+            section.mapIndexed { b, active ->
+                if (b != beatIndex) active else !active
+            }
+        }
+    }
+
+fun encodeBeatClickActive(beatClickActive: List<List<Boolean>>): String =
+    beatClickActive.joinToString(";") { section ->
+        section.joinToString(",") { active -> if (active) "1" else "0" }
+    }
+
+fun decodeBeatClickActive(raw: String): List<List<Boolean>> {
+    if (raw.isBlank()) return emptyList()
+    return raw.split(";").map { section ->
+        section.split(",").map { token -> token == "1" }
+    }
+}
+
 fun buildMetronomeClickSchedule(
     bpm: Float,
     selectedNoteValue: Float,
     timeSignatures: List<TimeSignature>,
+    beatClickActive: List<List<Boolean>>? = null,
 ): MetronomeClickSchedule {
     val boxes = mutableListOf<BeatBoxTiming>()
     val clickOffsetsNanos = mutableListOf<Long>()
@@ -31,8 +76,10 @@ fun buildMetronomeClickSchedule(
         val boxDurationNanos = boxDurationNanos(bpm, ts.denominator, selectedNoteValue)
         repeat(ts.numerator) { beatIndex ->
             val offsetNanos = sectionStartNanos + beatIndex * boxDurationNanos
-            clickOffsetsNanos.add(offsetNanos)
-            clickUseLeadTone.add(beatIndex == 0)
+            if (isBeatClickActive(beatClickActive, sectionIndex, beatIndex)) {
+                clickOffsetsNanos.add(offsetNanos)
+                clickUseLeadTone.add(beatIndex == 0)
+            }
             boxes.add(
                 BeatBoxTiming(
                     sectionIndex = sectionIndex,
