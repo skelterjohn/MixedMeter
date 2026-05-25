@@ -9,7 +9,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 
 val THEME_KEY = stringPreferencesKey("theme_setting")
 
-val THEME_OPTIONS = listOf("Gray", "Slate", "Sand", "Moss", "Dusk")
+val THEME_OPTIONS = listOf("Gray", "Slate", "Sand", "Moss", "Dusk", "Lava")
 
 const val DEFAULT_THEME = "Gray"
 
@@ -37,6 +37,7 @@ fun appThemeForName(name: String): AppThemeColors =
         "Sand" -> AppThemes.sand
         "Moss" -> AppThemes.moss
         "Dusk" -> AppThemes.dusk
+        "Lava" -> AppThemes.lava
         else -> AppThemes.gray
     }
 
@@ -114,6 +115,21 @@ object AppThemes {
         embossHighlight = Color(0xFFB8A8C8),
         embossShadow = Color(0xFF3A3048),
         dialogSurface = Color(0xFF7E6C92),
+    )
+
+    val lava = AppThemeColors(
+        name = "Lava",
+        background = Color(0xFFC44E2A),
+        buttonSurface = Color(0xFFE07848),
+        buttonBorder = Color(0xFF5C1808),
+        iconTint = Color(0xFF2A0800),
+        text = Color(0xFF2A0800),
+        embossSurface = Color(0xFFB84528),
+        embossSurfaceActive = Color(0xFFDD6A3C),
+        embossSurfaceDragging = Color(0xFFBF4E2C),
+        embossHighlight = Color(0xFFFFB07A),
+        embossShadow = Color(0xFF6E220C),
+        dialogSurface = Color(0xFFE88A58),
     )
 }
 
