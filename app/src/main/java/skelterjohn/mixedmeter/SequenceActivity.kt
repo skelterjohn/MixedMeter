@@ -80,7 +80,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
     var isOn by remember { mutableStateOf(false) }
     var sequencePosition by remember { mutableFloatStateOf(0f) }
     var activeItemIndex by remember { mutableIntStateOf(0) }
-    var activeRepeatIndex by remember { mutableIntStateOf(0) }
+    var activeRepeatIndex by remember { mutableStateOf<Int?>(null) }
     var playbackGeneration by remember { mutableIntStateOf(0) }
     var playbackStartSeconds by remember { mutableFloatStateOf(0f) }
     var prerenderToken by remember { mutableIntStateOf(0) }
@@ -128,20 +128,28 @@ private fun SequenceScreen(onBack: () -> Unit) {
         }
     }
 
-    fun stopPlayback() {
+    fun pausePlayback() {
         playbackHolder.value?.player?.stop()
         playbackHolder.value?.player?.release()
         playbackHolder.value = null
-        sequencePosition = 0f
         isOn = false
+    }
+
+    fun resolveStartSegment(prerender: SequencePrerender): SequenceSegment? {
+        val itemIndex = activeItemIndex.coerceIn(sequenceItems.indices)
+        val repeat = activeRepeatIndex
+        return if (repeat != null) {
+            segmentForRepeat(itemIndex, repeat, prerender.segments)
+        } else {
+            null
+        }
+            ?: prerender.segments.firstOrNull { it.itemIndex == itemIndex }
+            ?: prerender.segments.firstOrNull()
     }
 
     fun beginPlayback(prerender: SequencePrerender) {
         if (sequenceItems.isEmpty()) return
-        val highlightedIndex = activeItemIndex.coerceIn(sequenceItems.indices)
-        val startSegment = prerender.segments.firstOrNull { it.itemIndex == highlightedIndex }
-            ?: prerender.segments.firstOrNull()
-            ?: return
+        val startSegment = resolveStartSegment(prerender) ?: return
         activeItemIndex = startSegment.itemIndex
         activeRepeatIndex = startSegment.repeatIndex
         playbackStartSeconds = startSegment.startTimeSeconds
@@ -152,7 +160,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
 
     val togglePlayback: () -> Unit = {
         if (isOn) {
-            stopPlayback()
+            pausePlayback()
         } else if (sequenceItems.isNotEmpty()) {
             scope.launch {
                 var prerender = sequencePrerender
@@ -178,7 +186,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
         sequencePrerender = null
         prerenderToken++
         if (isOn) {
-            stopPlayback()
+            pausePlayback()
         }
     }
 
@@ -198,12 +206,19 @@ private fun SequenceScreen(onBack: () -> Unit) {
 
     LaunchedEffect(sequenceItems) {
         if (sequenceItems.isEmpty()) {
-            stopPlayback()
+            pausePlayback()
+            activeRepeatIndex = null
             return@LaunchedEffect
         }
         if (activeItemIndex >= sequenceItems.size) {
             activeItemIndex = 0
-            activeRepeatIndex = 0
+            activeRepeatIndex = null
+        } else {
+            val item = sequenceItems[activeItemIndex]
+            val repeat = activeRepeatIndex
+            if (repeat != null && repeat >= item.repeatCount) {
+                activeRepeatIndex = null
+            }
         }
     }
 
@@ -270,7 +285,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
                 val finished = position >= prerender.durationSeconds - 0.02f ||
                     (!player.isPlaying() && position > 0.05f)
                 if (finished) {
-                    stopPlayback()
+                    pausePlayback()
                 }
             }
         }
@@ -292,11 +307,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
             ),
         ) {
             itemsIndexed(sequenceItems, key = { _, item -> item.id }) { index, item ->
-                val rowActiveRepeatIndex = if (isOn && index == activeItemIndex) {
-                    activeRepeatIndex
-                } else {
-                    null
-                }
+                val rowActiveRepeatIndex = if (index == activeItemIndex) activeRepeatIndex else null
                 ReorderableItem(reorderableState, key = item.id) { isDragging ->
                     SequenceItemRow(
                         item = item,
@@ -304,16 +315,35 @@ private fun SequenceScreen(onBack: () -> Unit) {
                         isActive = index == activeItemIndex,
                         activeRepeatIndex = rowActiveRepeatIndex,
                         onSelect = {
+                            if (index != activeItemIndex) {
+                                activeRepeatIndex = null
+                            }
                             activeItemIndex = index
                             if (isOn) {
                                 val prerender = sequencePrerender
-                                val segment = prerender?.segments?.firstOrNull { it.itemIndex == index }
+                                val segment = prerender?.let { resolveStartSegment(it) }
                                 if (prerender != null && segment != null) {
                                     playbackHolder.value?.player?.seekToSeconds(segment.startTimeSeconds)
                                     sequencePosition = segment.startTimeSeconds
                                     activeRepeatIndex = segment.repeatIndex
+                                    playbackStartSeconds = segment.startTimeSeconds
                                 }
                             }
+                        },
+                        onRepeatClick = if (!isOn) {
+                            { repeatIndex ->
+                                activeItemIndex = index
+                                activeRepeatIndex = repeatIndex
+                                sequencePrerender?.let { prerender ->
+                                    segmentForRepeat(index, repeatIndex, prerender.segments)
+                                        ?.let { segment ->
+                                            playbackStartSeconds = segment.startTimeSeconds
+                                            sequencePosition = segment.startTimeSeconds
+                                        }
+                                }
+                            }
+                        } else {
+                            null
                         },
                         onDelete = {
                             scope.launch {
@@ -362,7 +392,9 @@ private fun SequenceScreen(onBack: () -> Unit) {
             verticalAlignment = Alignment.Bottom,
         ) {
             BottomNavIconButton(onClick = {
-                stopPlayback()
+                pausePlayback()
+                activeRepeatIndex = null
+                sequencePosition = 0f
                 onBack()
             }) {
                 ArrowDropDownNavIcon()

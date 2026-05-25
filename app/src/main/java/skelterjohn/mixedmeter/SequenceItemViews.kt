@@ -202,6 +202,7 @@ fun SequenceRepeatCountSelector(
 private fun SequenceBeatBoxGrid(
     count: Int,
     activeRepeatIndex: Int?,
+    onRepeatClick: ((Int) -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     val boxCount = count.coerceAtLeast(1)
@@ -216,7 +217,14 @@ private fun SequenceBeatBoxGrid(
                 modifier = Modifier
                     .size(SequenceBeatBoxSize)
                     .background(if (isActiveRepeat) Color.White else Color.Black)
-                    .border(1.dp, Color.White),
+                    .border(1.dp, Color.White)
+                    .then(
+                        if (onRepeatClick != null) {
+                            Modifier.clickable { onRepeatClick(index) }
+                        } else {
+                            Modifier
+                        },
+                    ),
             )
         }
     }
@@ -230,6 +238,7 @@ fun SequenceItemRow(
     onDelete: () -> Unit,
     onRepeatCountChange: (Int) -> Unit,
     onSelect: () -> Unit,
+    onRepeatClick: ((Int) -> Unit)?,
     rowDragModifier: Modifier,
     modifier: Modifier = Modifier,
     isDragging: Boolean = false,
@@ -277,6 +286,7 @@ fun SequenceItemRow(
                     SequenceBeatBoxGrid(
                         count = item.repeatCount,
                         activeRepeatIndex = activeRepeatIndex,
+                        onRepeatClick = onRepeatClick,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 8.dp),

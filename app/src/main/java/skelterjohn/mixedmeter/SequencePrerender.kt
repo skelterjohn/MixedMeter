@@ -27,6 +27,16 @@ fun segmentAt(positionSeconds: Float, segments: List<SequenceSegment>): Sequence
     }
 }
 
+fun segmentForRepeat(
+    itemIndex: Int,
+    repeatIndex: Int,
+    segments: List<SequenceSegment>,
+): SequenceSegment? {
+    return segments.firstOrNull { segment ->
+        segment.itemIndex == itemIndex && segment.repeatIndex == repeatIndex
+    }
+}
+
 fun renderSequence(
     items: List<SequenceItem>,
     useBeepBeatTone: Boolean,
