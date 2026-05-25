@@ -23,7 +23,7 @@ class MetronomeLoopPlayer private constructor(
 ) {
     private interface Backend {
         fun prime()
-        fun start()
+        fun start(fromPositionSeconds: Float = 0f)
         fun stop()
         fun release()
         fun isPlaying(): Boolean
@@ -43,11 +43,11 @@ class MetronomeLoopPlayer private constructor(
             track.setPlaybackHeadPosition(0)
         }
 
-        override fun start() {
+        override fun start(fromPositionSeconds: Float) {
             if (track.playState == AudioTrack.PLAYSTATE_PLAYING) {
                 track.pause()
             }
-            track.setPlaybackHeadPosition(0)
+            track.setPlaybackHeadPosition(secondsToFrame(fromPositionSeconds, cycleFrameCount))
             track.play()
         }
 
@@ -71,6 +71,15 @@ class MetronomeLoopPlayer private constructor(
             val inCycle = ((head % cycleFrameCount) + cycleFrameCount) % cycleFrameCount
             return inCycle.toFloat() / MetronomeClickWav.SAMPLE_RATE
         }
+
+        override fun seekToSeconds(seconds: Float, totalDurationSeconds: Float) {
+            try {
+                track.setPlaybackHeadPosition(
+                    secondsToFrame(seconds.coerceIn(0f, totalDurationSeconds), cycleFrameCount),
+                )
+            } catch (_: IllegalStateException) {
+            }
+        }
     }
 
     /** Continuously writes the cycle into a stream track — gapless, no flush on play. */
@@ -82,8 +91,14 @@ class MetronomeLoopPlayer private constructor(
         @Volatile
         private var feeding = false
         private var feederThread: Thread? = null
+        @Volatile
+        private var feedLoopOffset = 0
+        @Volatile
+        private var timelineStartFrame = 0
 
         override fun prime() {
+            feedLoopOffset = 0
+            timelineStartFrame = 0
             writeFullLoop()
             track.setPlaybackHeadPosition(0)
             track.play()
@@ -91,16 +106,33 @@ class MetronomeLoopPlayer private constructor(
             track.setPlaybackHeadPosition(0)
         }
 
-        override fun start() {
+        override fun start(fromPositionSeconds: Float) {
             haltFeederAndJoin()
             if (track.playState == AudioTrack.PLAYSTATE_PLAYING) {
                 track.pause()
             }
             track.flush()
             track.setPlaybackHeadPosition(0)
-            writeFullLoop()
+            timelineStartFrame = secondsToFrame(fromPositionSeconds, cycleFrameCount)
+            feedLoopOffset = timelineStartFrame
+            if (timelineStartFrame == 0) {
+                writeFullLoop()
+            }
             startFeeder()
             track.play()
+        }
+
+        override fun seekToSeconds(seconds: Float, totalDurationSeconds: Float) {
+            val wasPlaying = track.playState == AudioTrack.PLAYSTATE_PLAYING
+            haltFeederAndJoin()
+            track.flush()
+            track.setPlaybackHeadPosition(0)
+            timelineStartFrame = secondsToFrame(seconds.coerceIn(0f, totalDurationSeconds), cycleFrameCount)
+            feedLoopOffset = timelineStartFrame
+            startFeeder()
+            if (wasPlaying) {
+                track.play()
+            }
         }
 
         override fun stop() {
@@ -132,15 +164,18 @@ class MetronomeLoopPlayer private constructor(
             if (track.playState != AudioTrack.PLAYSTATE_PLAYING || cycleFrameCount <= 0) {
                 return 0f
             }
+            val head = playbackHeadFrames()
+            val inCycle = ((timelineStartFrame + head) % cycleFrameCount + cycleFrameCount) %
+                cycleFrameCount
+            return inCycle.toFloat() / MetronomeClickWav.SAMPLE_RATE
+        }
+
+        private fun playbackHeadFrames(): Int {
             val timestamp = AudioTimestamp()
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && track.getTimestamp(timestamp)) {
-                val inCycle = ((timestamp.framePosition % cycleFrameCount) + cycleFrameCount) %
-                    cycleFrameCount
-                return inCycle.toFloat() / MetronomeClickWav.SAMPLE_RATE
+                return timestamp.framePosition.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
             }
-            val head = track.playbackHeadPosition
-            val inCycle = ((head % cycleFrameCount) + cycleFrameCount) % cycleFrameCount
-            return inCycle.toFloat() / MetronomeClickWav.SAMPLE_RATE
+            return track.playbackHeadPosition
         }
 
         private fun writeFullLoop() {
@@ -156,14 +191,16 @@ class MetronomeLoopPlayer private constructor(
             feederThread = Thread(
                 {
                     Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
+                    var offset = feedLoopOffset
                     while (feeding) {
                         if (track.playState == AudioTrack.PLAYSTATE_PLAYING) {
                             val written = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                                track.write(samples, 0, samples.size, AudioTrack.WRITE_BLOCKING)
+                                track.write(samples, offset, samples.size - offset, AudioTrack.WRITE_BLOCKING)
                             } else {
-                                track.write(samples, 0, samples.size)
+                                track.write(samples, offset, samples.size - offset)
                             }
                             if (written < 0) break
+                            offset = 0
                         } else {
                             LockSupport.parkNanos(1_000_000L)
                         }
@@ -188,12 +225,13 @@ class MetronomeLoopPlayer private constructor(
             prepared = true
         }
 
-        override fun start() {
+        override fun start(fromPositionSeconds: Float) {
             if (!prepared) {
                 mediaPlayer.prepare()
                 prepared = true
             }
-            mediaPlayer.seekTo(0)
+            val ms = (fromPositionSeconds.coerceAtLeast(0f) * 1000f).toInt()
+            mediaPlayer.seekTo(ms)
             startNano.set(System.nanoTime())
             mediaPlayer.start()
         }
@@ -223,12 +261,7 @@ class MetronomeLoopPlayer private constructor(
 
         override fun cyclePositionSeconds(cycleDurationSeconds: Float): Float {
             if (!mediaPlayer.isPlaying || cycleDurationSeconds <= 0f) return 0f
-            if (!looping) {
-                return mediaPlayer.currentPosition.coerceAtLeast(0) / 1000f
-            }
-            val cycleNanos = (cycleDurationSeconds * 1_000_000_000L).toLong()
-            val elapsed = System.nanoTime() - startNano.get()
-            return ((elapsed % cycleNanos).toFloat() / 1_000_000_000f).coerceAtLeast(0f)
+            return mediaPlayer.currentPosition.coerceAtLeast(0) / 1000f
         }
 
         override fun seekToSeconds(seconds: Float, totalDurationSeconds: Float) {
@@ -240,7 +273,7 @@ class MetronomeLoopPlayer private constructor(
         }
     }
 
-    fun start() = backend.start()
+    fun start(fromPositionSeconds: Float = 0f) = backend.start(fromPositionSeconds)
 
     fun isPlaying(): Boolean = backend.isPlaying()
 
@@ -260,6 +293,13 @@ class MetronomeLoopPlayer private constructor(
     }
 
     companion object {
+        private fun secondsToFrame(seconds: Float, frameCount: Int): Int {
+            if (frameCount <= 0) return 0
+            return (seconds.coerceAtLeast(0f) * MetronomeClickWav.SAMPLE_RATE)
+                .toInt()
+                .coerceIn(0, frameCount - 1)
+        }
+
         /** Linear playback through [loop] once (no wrap). Used for full sequence prerenders. */
         fun createOneShot(context: Context, loop: MetronomeLoopRenderer.MetronomeLoop): MetronomeLoopPlayer {
             return try {
@@ -398,21 +438,25 @@ class MetronomeLoopPlayer private constructor(
             @Volatile
             private var feeding = false
             private var feederThread: Thread? = null
+            @Volatile
+            private var timelineStartFrame = 0
 
             override fun prime() {
+                timelineStartFrame = 0
                 track.setPlaybackHeadPosition(0)
                 track.play()
                 track.pause()
                 track.setPlaybackHeadPosition(0)
             }
 
-            override fun start() {
+            override fun start(fromPositionSeconds: Float) {
                 haltFeederAndJoin()
                 if (track.playState == AudioTrack.PLAYSTATE_PLAYING) {
                     track.pause()
                 }
                 track.flush()
                 track.setPlaybackHeadPosition(0)
+                timelineStartFrame = secondsToFrame(fromPositionSeconds, totalFrameCount)
                 startFeederOnce()
                 track.play()
             }
@@ -430,22 +474,26 @@ class MetronomeLoopPlayer private constructor(
             override fun isPlaying(): Boolean {
                 if (track.playState != AudioTrack.PLAYSTATE_PLAYING) return false
                 val head = currentHeadFrame()
-                return head < totalFrameCount
+                return timelineStartFrame + head < totalFrameCount
             }
 
             override fun cyclePositionSeconds(cycleDurationSeconds: Float): Float {
                 if (track.playState != AudioTrack.PLAYSTATE_PLAYING) return 0f
-                val head = currentHeadFrame().coerceIn(0, totalFrameCount)
-                return head.toFloat() / MetronomeClickWav.SAMPLE_RATE
+                val head = currentHeadFrame()
+                return (timelineStartFrame + head)
+                    .coerceAtMost(totalFrameCount)
+                    .toFloat() / MetronomeClickWav.SAMPLE_RATE
             }
 
             override fun seekToSeconds(seconds: Float, totalDurationSeconds: Float) {
-                val frame = (seconds.coerceIn(0f, totalDurationSeconds) * MetronomeClickWav.SAMPLE_RATE)
-                    .toInt()
-                    .coerceIn(0, totalFrameCount)
-                try {
-                    track.setPlaybackHeadPosition(frame)
-                } catch (_: IllegalStateException) {
+                val wasPlaying = track.playState == AudioTrack.PLAYSTATE_PLAYING
+                haltFeederAndJoin()
+                track.flush()
+                track.setPlaybackHeadPosition(0)
+                timelineStartFrame = secondsToFrame(seconds.coerceIn(0f, totalDurationSeconds), totalFrameCount)
+                startFeederOnce()
+                if (wasPlaying) {
+                    track.play()
                 }
             }
 
@@ -473,7 +521,7 @@ class MetronomeLoopPlayer private constructor(
                 feederThread = Thread(
                     {
                         Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
-                        var offset = 0
+                        var offset = timelineStartFrame
                         while (feeding && offset < samples.size) {
                             if (track.playState == AudioTrack.PLAYSTATE_PLAYING) {
                                 val remaining = samples.size - offset

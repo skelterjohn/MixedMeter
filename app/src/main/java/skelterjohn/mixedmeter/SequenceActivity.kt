@@ -82,6 +82,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
     var activeItemIndex by remember { mutableIntStateOf(0) }
     var activeRepeatIndex by remember { mutableIntStateOf(0) }
     var playbackGeneration by remember { mutableIntStateOf(0) }
+    var playbackStartSeconds by remember { mutableFloatStateOf(0f) }
     var prerenderToken by remember { mutableIntStateOf(0) }
     var sequencePrerender by remember { mutableStateOf<SequencePrerender?>(null) }
     val playbackHolder = remember { mutableStateOf<SequencePlaybackSlot?>(null) }
@@ -135,13 +136,17 @@ private fun SequenceScreen(onBack: () -> Unit) {
         isOn = false
     }
 
-    fun beginPlaybackFromStart() {
-        if (sequenceItems.isEmpty() || sequencePrerender == null) return
-        val startSegment = sequencePrerender!!.segments.firstOrNull() ?: return
+    fun beginPlayback(prerender: SequencePrerender) {
+        if (sequenceItems.isEmpty()) return
+        val highlightedIndex = activeItemIndex.coerceIn(sequenceItems.indices)
+        val startSegment = prerender.segments.firstOrNull { it.itemIndex == highlightedIndex }
+            ?: prerender.segments.firstOrNull()
+            ?: return
         activeItemIndex = startSegment.itemIndex
         activeRepeatIndex = startSegment.repeatIndex
+        playbackStartSeconds = startSegment.startTimeSeconds
         playbackGeneration++
-        sequencePosition = 0f
+        sequencePosition = playbackStartSeconds
         isOn = true
     }
 
@@ -161,8 +166,9 @@ private fun SequenceScreen(onBack: () -> Unit) {
                     }
                     sequencePrerender = prerender
                 }
-                if (prerender != null) {
-                    beginPlaybackFromStart()
+                prerender?.let { built ->
+                    sequencePrerender = built
+                    beginPlayback(built)
                 }
             }
         }
@@ -204,7 +210,6 @@ private fun SequenceScreen(onBack: () -> Unit) {
     LaunchedEffect(
         isOn,
         playbackGeneration,
-        sequencePrerender,
         beatToneSetting,
         leadToneSetting,
         loopEnabled,
@@ -232,8 +237,9 @@ private fun SequenceScreen(onBack: () -> Unit) {
         }
         oldPlayer?.release()
         playbackHolder.value = SequencePlaybackSlot(newPlayer, prerender)
-        sequencePosition = 0f
-        newPlayer.start()
+        val startAt = playbackStartSeconds.coerceIn(0f, prerender.durationSeconds)
+        sequencePosition = startAt
+        newPlayer.start(startAt)
     }
 
     LaunchedEffect(isOn, loopEnabled) {
