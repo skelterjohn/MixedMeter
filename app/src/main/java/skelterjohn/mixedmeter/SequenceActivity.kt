@@ -164,14 +164,20 @@ private fun SequenceScreen(onBack: () -> Unit) {
             ?: prerender.segments.firstOrNull()
     }
 
+    fun seekToSegment(segment: SequenceSegment) {
+        activeItemIndex = segment.itemIndex
+        activeRepeatIndex = segment.repeatIndex
+        playbackStartSeconds = segment.startTimeSeconds
+        sequencePosition = segment.startTimeSeconds
+        if (isOn) {
+            playbackGeneration++
+        }
+    }
+
     fun beginPlayback(prerender: SequencePrerender) {
         if (sequenceItems.isEmpty()) return
         val startSegment = resolveStartSegment(prerender) ?: return
-        activeItemIndex = startSegment.itemIndex
-        activeRepeatIndex = startSegment.repeatIndex
-        playbackStartSeconds = startSegment.startTimeSeconds
-        playbackGeneration++
-        sequencePosition = playbackStartSeconds
+        seekToSegment(startSegment)
         isOn = true
     }
 
@@ -244,7 +250,6 @@ private fun SequenceScreen(onBack: () -> Unit) {
         playbackGeneration,
         beatToneSetting,
         leadToneSetting,
-        loopEnabled,
     ) {
         if (!isOn) {
             playbackHolder.value?.player?.stop()
@@ -261,11 +266,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
             cycleDurationSeconds = prerender.durationSeconds,
         )
         val newPlayer = withContext(Dispatchers.Default) {
-            if (loopEnabled) {
-                MetronomeLoopPlayer.create(context, loop)
-            } else {
-                MetronomeLoopPlayer.createOneShot(context, loop)
-            }
+            MetronomeLoopPlayer.create(context, loop)
         }
         oldPlayer?.release()
         playbackHolder.value = SequencePlaybackSlot(newPlayer, prerender)
@@ -274,7 +275,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
         newPlayer.start(startAt)
     }
 
-    LaunchedEffect(isOn, loopEnabled) {
+    LaunchedEffect(isOn, loopEnabled, playbackGeneration) {
         if (!isOn) return@LaunchedEffect
 
         var attempts = 0
@@ -283,6 +284,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
             attempts++
         }
 
+        var lastPosition = -1f
         while (isActive && isOn) {
             withFrameNanos {
                 val slot = playbackHolder.value ?: return@withFrameNanos
@@ -297,13 +299,18 @@ private fun SequenceScreen(onBack: () -> Unit) {
                     activeRepeatIndex = segment.repeatIndex
                 }
 
-                if (loopEnabled) return@withFrameNanos
-
-                val finished = position >= prerender.durationSeconds - 0.02f ||
-                    (!player.isPlaying() && position > 0.05f)
-                if (finished) {
-                    pausePlayback()
+                if (!loopEnabled) {
+                    val duration = prerender.durationSeconds
+                    val wrappedToStart = lastPosition >= 0f &&
+                        lastPosition >= duration - 0.05f &&
+                        position < minOf(0.15f, duration * 0.05f)
+                    val atEnd = position >= duration - 0.02f
+                    if (wrappedToStart || atEnd || (!player.isPlaying() && position > 0.05f)) {
+                        pausePlayback()
+                        return@withFrameNanos
+                    }
                 }
+                lastPosition = position
             }
         }
     }
@@ -336,31 +343,16 @@ private fun SequenceScreen(onBack: () -> Unit) {
                                 activeRepeatIndex = null
                             }
                             activeItemIndex = index
-                            if (isOn) {
-                                val prerender = sequencePrerender
-                                val segment = prerender?.let { resolveStartSegment(it) }
-                                if (prerender != null && segment != null) {
-                                    playbackHolder.value?.player?.seekToSeconds(segment.startTimeSeconds)
-                                    sequencePosition = segment.startTimeSeconds
-                                    activeRepeatIndex = segment.repeatIndex
-                                    playbackStartSeconds = segment.startTimeSeconds
-                                }
-                            }
+                            val prerender = sequencePrerender ?: return@SequenceItemRow
+                            val segment = resolveStartSegment(prerender) ?: return@SequenceItemRow
+                            seekToSegment(segment)
                         },
-                        onRepeatClick = if (!isOn) {
-                            { repeatIndex ->
-                                activeItemIndex = index
-                                activeRepeatIndex = repeatIndex
-                                sequencePrerender?.let { prerender ->
-                                    segmentForRepeat(index, repeatIndex, prerender.segments)
-                                        ?.let { segment ->
-                                            playbackStartSeconds = segment.startTimeSeconds
-                                            sequencePosition = segment.startTimeSeconds
-                                        }
-                                }
+                        onRepeatClick = { repeatIndex ->
+                            activeItemIndex = index
+                            sequencePrerender?.let { prerender ->
+                                segmentForRepeat(index, repeatIndex, prerender.segments)
+                                    ?.let { segment -> seekToSegment(segment) }
                             }
-                        } else {
-                            null
                         },
                         onDelete = {
                             scope.launch {
