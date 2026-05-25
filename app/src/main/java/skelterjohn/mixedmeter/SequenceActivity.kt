@@ -214,8 +214,8 @@ private fun SequenceScreen(onBack: () -> Unit) {
     val displayBpm by remember {
         derivedStateOf {
             activeSegment?.displayBpm
-                ?: sequenceItems.getOrNull(activeItemIndex)?.displayBpm()
-                ?: sequenceItems.firstOrNull()?.displayBpm()
+                ?: sequenceItems.getOrNull(activeItemIndex)?.displayBpmAtPercent(sequencePercent)?.toFloat()
+                ?: sequenceItems.firstOrNull()?.displayBpmAtPercent(sequencePercent)?.toFloat()
                 ?: 120f
         }
     }
@@ -296,6 +296,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
                     prerender = withContext(Dispatchers.Default) {
                         renderSequence(
                             items = sequenceItems,
+                            tempoPercent = sequencePercent,
                             useBeepBeatTone = beatToneSetting == "beep",
                             useBeepLeadTone = leadToneSetting == "beep",
                         )
@@ -321,7 +322,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
         }
     }
 
-    LaunchedEffect(prerenderToken, sequenceItems, beatToneSetting, leadToneSetting) {
+    LaunchedEffect(prerenderToken, sequenceItems, beatToneSetting, leadToneSetting, sequencePercent) {
         if (sequenceItems.isEmpty()) {
             sequencePrerender = null
             return@LaunchedEffect
@@ -329,6 +330,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
         sequencePrerender = withContext(Dispatchers.Default) {
             renderSequence(
                 items = sequenceItems,
+                tempoPercent = sequencePercent,
                 useBeepBeatTone = beatToneSetting == "beep",
                 useBeepLeadTone = leadToneSetting == "beep",
             )
@@ -532,6 +534,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
                 ReorderableItem(reorderableState, key = item.id) { isDragging ->
                     SequenceItemRow(
                         item = item,
+                        tempoPercent = sequencePercent,
                         isDragging = isDragging,
                         isActive = index == activeItemIndex,
                         activeRepeatIndex = rowActiveRepeatIndex,

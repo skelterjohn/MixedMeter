@@ -1,5 +1,7 @@
 package skelterjohn.mixedmeter
 
+import kotlin.math.roundToInt
+
 internal data class LoopPlayerSlot(
     val player: MetronomeLoopPlayer,
     val schedule: MetronomeClickSchedule,
@@ -23,13 +25,16 @@ fun noteValueForSymbol(note: String): Float {
     }
 }
 
-fun SequenceItem.metronomeSchedule(): MetronomeClickSchedule {
+fun scaledSequenceBpm(baseBpm: Float, tempoPercent: Float): Float =
+    baseBpm * tempoPercent / 100f
+
+fun SequenceItem.metronomeSchedule(tempoPercent: Float = 100f): MetronomeClickSchedule {
     val (itemBpm, note, signatures) = when (this) {
         is SequenceItem.PlainBpm -> Triple(bpm, selectedNote, emptyList())
         is SequenceItem.MeterPattern -> Triple(bpm, selectedNote, timeSignatures)
     }
     return buildMetronomeClickSchedule(
-        bpm = itemBpm,
+        bpm = scaledSequenceBpm(itemBpm, tempoPercent),
         selectedNoteValue = noteValueForSymbol(note),
         timeSignatures = signatures,
     )
@@ -39,6 +44,9 @@ fun SequenceItem.displayBpm(): Float = when (this) {
     is SequenceItem.PlainBpm -> bpm
     is SequenceItem.MeterPattern -> bpm
 }
+
+fun SequenceItem.displayBpmAtPercent(tempoPercent: Float): Int =
+    scaledSequenceBpm(displayBpm(), tempoPercent).roundToInt()
 
 fun beatBoxProgress(
     isOn: Boolean,

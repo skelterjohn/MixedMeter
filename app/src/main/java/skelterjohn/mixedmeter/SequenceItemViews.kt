@@ -130,6 +130,7 @@ private fun StackedTimeSignature(
 @Composable
 fun SequenceItemLabel(
     item: SequenceItem,
+    tempoPercent: Float,
     modifier: Modifier = Modifier,
 ) {
     val textStyle = TextStyle(
@@ -140,7 +141,7 @@ fun SequenceItemLabel(
     when (item) {
         is SequenceItem.PlainBpm -> {
             Text(
-                text = "@${item.bpm.toInt()}",
+                text = "@${item.displayBpmAtPercent(tempoPercent)}",
                 style = textStyle,
                 modifier = modifier,
             )
@@ -162,7 +163,7 @@ fun SequenceItemLabel(
                     )
                 }
                 Text(
-                    text = " ${item.bpm.toInt()} = ${item.selectedNote}",
+                    text = " ${item.displayBpmAtPercent(tempoPercent)} = ${item.selectedNote}",
                     style = textStyle,
                 )
             }
@@ -237,6 +238,7 @@ private val SequenceBeatBoxSize = 20.dp
 @Composable
 fun SequenceItemRow(
     item: SequenceItem,
+    tempoPercent: Float,
     onDelete: () -> Unit,
     onRepeatCountChange: (Int) -> Unit,
     onSelect: () -> Unit,
@@ -284,7 +286,7 @@ fun SequenceItemRow(
                         .weight(1f)
                         .padding(start = 4.dp),
                 ) {
-                    SequenceItemLabel(item = item)
+                    SequenceItemLabel(item = item, tempoPercent = tempoPercent)
                     SequenceBeatBoxGrid(
                         count = item.repeatCount,
                         activeRepeatIndex = activeRepeatIndex,

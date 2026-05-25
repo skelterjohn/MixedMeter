@@ -39,6 +39,7 @@ fun segmentForRepeat(
 
 fun renderSequence(
     items: List<SequenceItem>,
+    tempoPercent: Float,
     useBeepBeatTone: Boolean,
     useBeepLeadTone: Boolean,
 ): SequencePrerender? {
@@ -49,7 +50,7 @@ fun renderSequence(
     var startTimeSeconds = 0f
 
     items.forEachIndexed { itemIndex, item ->
-        val schedule = item.metronomeSchedule()
+        val schedule = item.metronomeSchedule(tempoPercent)
         val loop = MetronomeLoopRenderer.render(
             schedule = schedule,
             useBeepBeatTone = useBeepBeatTone,
@@ -63,7 +64,7 @@ fun renderSequence(
                     itemIndex = itemIndex,
                     repeatIndex = repeatIndex,
                     schedule = schedule,
-                    displayBpm = item.displayBpm(),
+                    displayBpm = item.displayBpmAtPercent(tempoPercent).toFloat(),
                 ),
             )
             measureLoops.add(loop)
