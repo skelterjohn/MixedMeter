@@ -5,10 +5,16 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.DropdownMenuItem
@@ -30,7 +36,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.unit.dp
 import androidx.datastore.preferences.core.edit
 import kotlinx.coroutines.flow.map
@@ -117,6 +126,7 @@ class SettingsActivity : ComponentActivity() {
                                     dataStore.edit { it[THEME_KEY] = value }
                                 }
                             },
+                            optionBackgroundColor = { appThemeForName(it).background },
                             modifier = Modifier.padding(top = 24.dp),
                         )
                     }
@@ -133,6 +143,7 @@ fun StringSettingDropdown(
     options: List<String>,
     selectedValue: String,
     onSelect: (String) -> Unit,
+    optionBackgroundColor: ((String) -> Color)? = null,
     modifier: Modifier = Modifier,
 ) {
     val theme = currentAppTheme()
@@ -166,7 +177,23 @@ fun StringSettingDropdown(
         ) {
             options.forEach { option ->
                 DropdownMenuItem(
-                    text = { Text(option, color = DropdownMenuTextColor) },
+                    text = {
+                        val swatchColor = optionBackgroundColor?.invoke(option)
+                        if (swatchColor != null) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(18.dp)
+                                        .background(swatchColor, RectangleShape)
+                                        .border(1.dp, Color.Black, RectangleShape),
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Text(option, color = DropdownMenuTextColor)
+                            }
+                        } else {
+                            Text(option, color = DropdownMenuTextColor)
+                        }
+                    },
                     onClick = {
                         onSelect(option)
                         expanded = false
