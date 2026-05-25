@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.sp
 
 private val SequenceEmbossSurface = Color(0xFF969696)
 private val SequenceEmbossSurfaceActive = Color(0xFFB8B8B8)
+private val SequenceRepeatCountButtonSurface = Color(0xFFAEAEAE)
 private val SequenceEmbossSurfaceDragging = Color(0xFFA8A8A8)
 private val SequenceEmbossHighlight = Color(0xFFDADADA)
 private val SequenceEmbossShadow = Color(0xFF454545)
@@ -182,8 +183,9 @@ fun SequenceRepeatCountSelector(
         fontSize = 24.sp,
         fontWeight = FontWeight.Bold,
         modifier = modifier
-            .border(1.dp, Color.Black, RoundedCornerShape(6.dp))
             .clickable { showPicker = true }
+            .background(SequenceRepeatCountButtonSurface, RoundedCornerShape(6.dp))
+            .border(1.dp, Color.Black, RoundedCornerShape(6.dp))
             .padding(horizontal = 16.dp, vertical = 6.dp),
     )
     if (showPicker) {

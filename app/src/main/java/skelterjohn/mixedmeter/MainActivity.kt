@@ -929,6 +929,8 @@ private fun TimeSignatureSelectorCell(
     }
 }
 
+private val MeterInsertButtonSurface = Color(0xFFAEAEAE)
+
 @Composable
 private fun InsertTimeSignatureButton(
     enabled: Boolean,
@@ -942,7 +944,7 @@ private fun InsertTimeSignatureButton(
             .alpha(if (enabled) 1f else 0.3f)
             .shadow(2.dp, RoundedCornerShape(5))
             .size(20.dp)
-            .background(Color.Gray, RoundedCornerShape(5))
+            .background(MeterInsertButtonSurface, RoundedCornerShape(5))
             .border(1.dp, Color.Black, RoundedCornerShape(5))
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
