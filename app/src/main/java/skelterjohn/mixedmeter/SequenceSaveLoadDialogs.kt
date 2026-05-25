@@ -232,22 +232,10 @@ private fun SavedSequenceListRow(
     onDelete: () -> Unit,
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color.White, RoundedCornerShape(6.dp))
-            .border(1.dp, Color.Black, RoundedCornerShape(6.dp)),
+        modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(
-            text = saved.name,
-            color = Color.Black,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier
-                .weight(1f)
-                .clickable(onClick = onSelect)
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-        )
         IconButton(
             onClick = onDelete,
             modifier = Modifier.size(48.dp),
@@ -258,5 +246,17 @@ private fun SavedSequenceListRow(
                 tint = Color.Black,
             )
         }
+        Text(
+            text = saved.name,
+            color = Color.Black,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier
+                .weight(1f)
+                .clickable(onClick = onSelect)
+                .background(Color.White, RoundedCornerShape(6.dp))
+                .border(1.dp, Color.Black, RoundedCornerShape(6.dp))
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+        )
     }
 }
