@@ -28,6 +28,7 @@ class MetronomeLoopPlayer private constructor(
         fun release()
         fun isPlaying(): Boolean
         fun cyclePositionSeconds(cycleDurationSeconds: Float): Float
+        fun seekToSeconds(seconds: Float, totalDurationSeconds: Float) {}
     }
 
     /** Hardware loop — gapless when the device accepts static mode. */
@@ -175,6 +176,7 @@ class MetronomeLoopPlayer private constructor(
 
     private class MediaPlayerBackend(
         private val mediaPlayer: MediaPlayer,
+        private val looping: Boolean = true,
     ) : Backend {
         private val startNano = AtomicLong(0L)
         private var prepared = true
@@ -221,9 +223,20 @@ class MetronomeLoopPlayer private constructor(
 
         override fun cyclePositionSeconds(cycleDurationSeconds: Float): Float {
             if (!mediaPlayer.isPlaying || cycleDurationSeconds <= 0f) return 0f
+            if (!looping) {
+                return mediaPlayer.currentPosition.coerceAtLeast(0) / 1000f
+            }
             val cycleNanos = (cycleDurationSeconds * 1_000_000_000L).toLong()
             val elapsed = System.nanoTime() - startNano.get()
             return ((elapsed % cycleNanos).toFloat() / 1_000_000_000f).coerceAtLeast(0f)
+        }
+
+        override fun seekToSeconds(seconds: Float, totalDurationSeconds: Float) {
+            val ms = (seconds.coerceIn(0f, totalDurationSeconds) * 1000f).toInt()
+            try {
+                mediaPlayer.seekTo(ms)
+            } catch (_: IllegalStateException) {
+            }
         }
     }
 
@@ -242,7 +255,19 @@ class MetronomeLoopPlayer private constructor(
 
     fun cycleDurationSeconds(): Float = cycleDurationSeconds
 
+    fun seekToSeconds(seconds: Float) {
+        backend.seekToSeconds(seconds, cycleDurationSeconds)
+    }
+
     companion object {
+        /** Linear playback through [loop] once (no wrap). Used for full sequence prerenders. */
+        fun createOneShot(context: Context, loop: MetronomeLoopRenderer.MetronomeLoop): MetronomeLoopPlayer {
+            return try {
+                buildOneShotStreamPlayer(loop)
+            } catch (_: Exception) {
+                buildOneShotMediaPlayer(context, loop)
+            }
+        }
         private fun AudioTrack.haltImmediately() {
             try {
                 pause()
@@ -360,6 +385,183 @@ class MetronomeLoopPlayer private constructor(
                 backend = StreamFeederBackend(track, samples, cycleFrameCount),
                 cycleDurationSeconds = loop.cycleDurationSeconds,
                 loopFile = null,
+            )
+            player.backend.prime()
+            return player
+        }
+
+        private class OneShotStreamBackend(
+            private val track: AudioTrack,
+            private val samples: ShortArray,
+            private val totalFrameCount: Int,
+        ) : Backend {
+            @Volatile
+            private var feeding = false
+            private var feederThread: Thread? = null
+
+            override fun prime() {
+                track.setPlaybackHeadPosition(0)
+                track.play()
+                track.pause()
+                track.setPlaybackHeadPosition(0)
+            }
+
+            override fun start() {
+                haltFeederAndJoin()
+                if (track.playState == AudioTrack.PLAYSTATE_PLAYING) {
+                    track.pause()
+                }
+                track.flush()
+                track.setPlaybackHeadPosition(0)
+                startFeederOnce()
+                track.play()
+            }
+
+            override fun stop() {
+                haltFeeder()
+                track.haltImmediately()
+            }
+
+            override fun release() {
+                stop()
+                track.release()
+            }
+
+            override fun isPlaying(): Boolean {
+                if (track.playState != AudioTrack.PLAYSTATE_PLAYING) return false
+                val head = currentHeadFrame()
+                return head < totalFrameCount
+            }
+
+            override fun cyclePositionSeconds(cycleDurationSeconds: Float): Float {
+                if (track.playState != AudioTrack.PLAYSTATE_PLAYING) return 0f
+                val head = currentHeadFrame().coerceIn(0, totalFrameCount)
+                return head.toFloat() / MetronomeClickWav.SAMPLE_RATE
+            }
+
+            override fun seekToSeconds(seconds: Float, totalDurationSeconds: Float) {
+                val frame = (seconds.coerceIn(0f, totalDurationSeconds) * MetronomeClickWav.SAMPLE_RATE)
+                    .toInt()
+                    .coerceIn(0, totalFrameCount)
+                try {
+                    track.setPlaybackHeadPosition(frame)
+                } catch (_: IllegalStateException) {
+                }
+            }
+
+            private fun currentHeadFrame(): Int {
+                val timestamp = AudioTimestamp()
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && track.getTimestamp(timestamp)) {
+                    return timestamp.framePosition.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+                }
+                return track.playbackHeadPosition
+            }
+
+            private fun haltFeeder() {
+                feeding = false
+                feederThread?.interrupt()
+            }
+
+            private fun haltFeederAndJoin() {
+                haltFeeder()
+                feederThread?.join(500)
+                feederThread = null
+            }
+
+            private fun startFeederOnce() {
+                feeding = true
+                feederThread = Thread(
+                    {
+                        Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
+                        var offset = 0
+                        while (feeding && offset < samples.size) {
+                            if (track.playState == AudioTrack.PLAYSTATE_PLAYING) {
+                                val remaining = samples.size - offset
+                                val written = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                    track.write(samples, offset, remaining, AudioTrack.WRITE_BLOCKING)
+                                } else {
+                                    track.write(samples, offset, remaining)
+                                }
+                                if (written <= 0) break
+                                offset += written
+                            } else {
+                                LockSupport.parkNanos(1_000_000L)
+                            }
+                        }
+                        feeding = false
+                    },
+                    "MixedMeterSequenceFeed",
+                ).apply { start() }
+            }
+        }
+
+        private fun buildOneShotStreamPlayer(loop: MetronomeLoopRenderer.MetronomeLoop): MetronomeLoopPlayer {
+            val sampleRate = MetronomeClickWav.SAMPLE_RATE
+            val samples = loop.samples
+            val totalFrameCount = samples.size.coerceAtLeast(1)
+
+            val minBufferBytes = AudioTrack.getMinBufferSize(
+                sampleRate,
+                AudioFormat.CHANNEL_OUT_MONO,
+                AudioFormat.ENCODING_PCM_16BIT,
+            )
+            require(minBufferBytes > 0) { "Invalid min buffer size" }
+
+            val bufferBytes = maxOf(minBufferBytes, minBufferBytes * 4)
+
+            val format = AudioFormat.Builder()
+                .setSampleRate(sampleRate)
+                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                .build()
+            val attributes = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_GAME)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
+
+            val track = AudioTrack.Builder()
+                .setAudioAttributes(attributes)
+                .setAudioFormat(format)
+                .setBufferSizeInBytes(bufferBytes)
+                .setTransferMode(AudioTrack.MODE_STREAM)
+                .build()
+
+            if (track.state != AudioTrack.STATE_INITIALIZED) {
+                track.release()
+                throw IllegalStateException("One-shot stream AudioTrack not initialized")
+            }
+
+            val player = MetronomeLoopPlayer(
+                backend = OneShotStreamBackend(track, samples, totalFrameCount),
+                cycleDurationSeconds = loop.cycleDurationSeconds,
+                loopFile = null,
+            )
+            player.backend.prime()
+            return player
+        }
+
+        private fun buildOneShotMediaPlayer(
+            context: Context,
+            loop: MetronomeLoopRenderer.MetronomeLoop,
+        ): MetronomeLoopPlayer {
+            val loopFile = File(context.cacheDir, "metronome_sequence.wav")
+            MetronomeClickWav.writeLoopWav(loopFile, loop.samples)
+
+            val mediaPlayer = MediaPlayer()
+            mediaPlayer.setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build(),
+            )
+            mediaPlayer.setDataSource(loopFile.absolutePath)
+            mediaPlayer.isLooping = false
+            mediaPlayer.prepare()
+
+            val player = MetronomeLoopPlayer(
+                backend = MediaPlayerBackend(mediaPlayer, looping = false),
+                cycleDurationSeconds = loop.cycleDurationSeconds,
+                loopFile = loopFile,
             )
             player.backend.prime()
             return player

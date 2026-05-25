@@ -7,7 +7,8 @@ import kotlin.math.PI
 import kotlin.math.sin
 
 object MetronomeClickWav {
-    const val SAMPLE_RATE = 44_100
+    /** Short metronome clicks do not need CD bandwidth; halves PCM size vs 44.1 kHz. */
+    const val SAMPLE_RATE = 22_050
 
     fun clickSamples(useBeepTone: Boolean): ShortArray = generateClickSamples(useBeepTone)
 

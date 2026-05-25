@@ -78,12 +78,13 @@ private fun SequenceScreen(onBack: () -> Unit) {
     val lazyListState = rememberLazyListState()
     var loopEnabled by remember { mutableStateOf(false) }
     var isOn by remember { mutableStateOf(false) }
-    var playbackPosition by remember { mutableFloatStateOf(0f) }
+    var sequencePosition by remember { mutableFloatStateOf(0f) }
     var activeItemIndex by remember { mutableIntStateOf(0) }
-    var repeatsRemaining by remember { mutableIntStateOf(0) }
+    var activeRepeatIndex by remember { mutableIntStateOf(0) }
     var playbackGeneration by remember { mutableIntStateOf(0) }
-    var prevCyclePosition by remember { mutableFloatStateOf(0f) }
-    val loopPlayerHolder = remember { mutableStateOf<LoopPlayerSlot?>(null) }
+    var prerenderToken by remember { mutableIntStateOf(0) }
+    var sequencePrerender by remember { mutableStateOf<SequencePrerender?>(null) }
+    val playbackHolder = remember { mutableStateOf<SequencePlaybackSlot?>(null) }
 
     val beatToneSetting by remember {
         context.dataStore.data.map { preferences -> preferences[TONE_KEY] ?: "bip" }
@@ -93,15 +94,17 @@ private fun SequenceScreen(onBack: () -> Unit) {
         context.dataStore.data.map { preferences -> preferences[LEAD_TONE_KEY] ?: "bip" }
     }.collectAsState(initial = "bip")
 
-    val activeSchedule by remember {
+    val activeSegment by remember {
         derivedStateOf {
-            sequenceItems.getOrNull(activeItemIndex)?.metronomeSchedule()
+            val prerender = sequencePrerender ?: return@derivedStateOf null
+            segmentAt(sequencePosition, prerender.segments)
         }
     }
 
     val displayBpm by remember {
         derivedStateOf {
-            sequenceItems.getOrNull(activeItemIndex)?.displayBpm()
+            activeSegment?.displayBpm
+                ?: sequenceItems.getOrNull(activeItemIndex)?.displayBpm()
                 ?: sequenceItems.firstOrNull()?.displayBpm()
                 ?: 120f
         }
@@ -109,8 +112,9 @@ private fun SequenceScreen(onBack: () -> Unit) {
 
     val beatProgress by remember {
         derivedStateOf {
-            val schedule = activeSchedule ?: return@derivedStateOf 0f
-            beatBoxProgress(isOn, playbackPosition, schedule)
+            val segment = activeSegment ?: return@derivedStateOf 0f
+            val positionInMeasure = sequencePosition - segment.startTimeSeconds
+            beatBoxProgress(isOn, positionInMeasure, segment.schedule)
         }
     }
 
@@ -124,30 +128,65 @@ private fun SequenceScreen(onBack: () -> Unit) {
     }
 
     fun stopPlayback() {
-        loopPlayerHolder.value?.player?.stop()
-        loopPlayerHolder.value?.player?.release()
-        loopPlayerHolder.value = null
-        playbackPosition = 0f
-        prevCyclePosition = 0f
+        playbackHolder.value?.player?.stop()
+        playbackHolder.value?.player?.release()
+        playbackHolder.value = null
+        sequencePosition = 0f
         isOn = false
     }
 
     fun beginPlaybackFromStart() {
-        if (sequenceItems.isEmpty()) return
-        val index = activeItemIndex.coerceIn(sequenceItems.indices)
-        activeItemIndex = index
-        repeatsRemaining = sequenceItems[index].repeatCount
+        if (sequenceItems.isEmpty() || sequencePrerender == null) return
+        val startSegment = sequencePrerender!!.segments.firstOrNull() ?: return
+        activeItemIndex = startSegment.itemIndex
+        activeRepeatIndex = startSegment.repeatIndex
         playbackGeneration++
-        playbackPosition = 0f
-        prevCyclePosition = 0f
+        sequencePosition = 0f
         isOn = true
     }
 
-    val togglePlayback = {
+    val togglePlayback: () -> Unit = {
         if (isOn) {
             stopPlayback()
-        } else {
-            beginPlaybackFromStart()
+        } else if (sequenceItems.isNotEmpty()) {
+            scope.launch {
+                var prerender = sequencePrerender
+                if (prerender == null) {
+                    prerender = withContext(Dispatchers.Default) {
+                        renderSequence(
+                            items = sequenceItems,
+                            useBeepBeatTone = beatToneSetting == "beep",
+                            useBeepLeadTone = leadToneSetting == "beep",
+                        )
+                    }
+                    sequencePrerender = prerender
+                }
+                if (prerender != null) {
+                    beginPlaybackFromStart()
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(sequenceItems, beatToneSetting, leadToneSetting) {
+        sequencePrerender = null
+        prerenderToken++
+        if (isOn) {
+            stopPlayback()
+        }
+    }
+
+    LaunchedEffect(prerenderToken, sequenceItems, beatToneSetting, leadToneSetting) {
+        if (sequenceItems.isEmpty()) {
+            sequencePrerender = null
+            return@LaunchedEffect
+        }
+        sequencePrerender = withContext(Dispatchers.Default) {
+            renderSequence(
+                items = sequenceItems,
+                useBeepBeatTone = beatToneSetting == "beep",
+                useBeepLeadTone = leadToneSetting == "beep",
+            )
         }
     }
 
@@ -158,87 +197,73 @@ private fun SequenceScreen(onBack: () -> Unit) {
         }
         if (activeItemIndex >= sequenceItems.size) {
             activeItemIndex = 0
-            repeatsRemaining = sequenceItems.first().repeatCount
-            if (isOn) playbackGeneration++
+            activeRepeatIndex = 0
         }
     }
 
-    LaunchedEffect(isOn, activeItemIndex, playbackGeneration, beatToneSetting, leadToneSetting) {
+    LaunchedEffect(isOn, playbackGeneration, sequencePrerender, beatToneSetting, leadToneSetting) {
         if (!isOn) {
-            loopPlayerHolder.value?.player?.stop()
-            loopPlayerHolder.value?.player?.release()
-            loopPlayerHolder.value = null
+            playbackHolder.value?.player?.stop()
+            playbackHolder.value?.player?.release()
+            playbackHolder.value = null
             return@LaunchedEffect
         }
 
-        val item = sequenceItems.getOrNull(activeItemIndex) ?: run {
-            stopPlayback()
-            return@LaunchedEffect
-        }
-
-        val schedule = item.metronomeSchedule()
-        val oldPlayer = loopPlayerHolder.value?.player
+        val prerender = sequencePrerender ?: return@LaunchedEffect
+        val oldPlayer = playbackHolder.value?.player
+        val loop = MetronomeLoopRenderer.MetronomeLoop(
+            samples = prerender.samples,
+            cycleFrameCount = prerender.totalFrameCount,
+            cycleDurationSeconds = prerender.durationSeconds,
+        )
         val newPlayer = withContext(Dispatchers.Default) {
-            val loop = MetronomeLoopRenderer.render(
-                schedule = schedule,
-                useBeepBeatTone = beatToneSetting == "beep",
-                useBeepLeadTone = leadToneSetting == "beep",
-            )
-            MetronomeLoopPlayer.create(context, loop)
+            MetronomeLoopPlayer.createOneShot(context, loop)
         }
         oldPlayer?.release()
-        loopPlayerHolder.value = LoopPlayerSlot(newPlayer, schedule)
-        playbackPosition = 0f
-        prevCyclePosition = 0f
+        playbackHolder.value = SequencePlaybackSlot(newPlayer, prerender)
+        sequencePosition = 0f
         newPlayer.start()
     }
 
-    LaunchedEffect(isOn) {
+    LaunchedEffect(isOn, loopEnabled) {
         if (!isOn) return@LaunchedEffect
 
         var attempts = 0
-        while (loopPlayerHolder.value == null && isActive && attempts < 500) {
+        while (playbackHolder.value == null && isActive && attempts < 500) {
             delay(10)
             attempts++
         }
 
         while (isActive && isOn) {
             withFrameNanos {
-                val slot = loopPlayerHolder.value ?: return@withFrameNanos
+                val slot = playbackHolder.value ?: return@withFrameNanos
                 val player = slot.player
-                if (!player.isPlaying()) return@withFrameNanos
+                val prerender = slot.prerender
 
                 val position = player.cyclePositionSeconds()
-                playbackPosition = position
+                sequencePosition = position
 
-                val cycleDuration = loopCycleSeconds(slot.schedule)
-                if (cycleDuration <= 0f) return@withFrameNanos
-
-                val wrappedPrev = prevCyclePosition % cycleDuration
-                val wrappedNow = position % cycleDuration
-                val completedCycle = wrappedPrev > cycleDuration * 0.5f && wrappedNow < cycleDuration * 0.15f
-                prevCyclePosition = position
-
-                if (!completedCycle) return@withFrameNanos
-
-                repeatsRemaining--
-                if (repeatsRemaining > 0) return@withFrameNanos
-
-                val nextIndex = activeItemIndex + 1
-                if (nextIndex >= sequenceItems.size) {
-                    if (loopEnabled) {
-                        activeItemIndex = 0
-                        repeatsRemaining = sequenceItems.first().repeatCount
-                        playbackGeneration++
-                    } else {
-                        stopPlayback()
-                    }
-                    return@withFrameNanos
+                segmentAt(position, prerender.segments)?.let { segment ->
+                    activeItemIndex = segment.itemIndex
+                    activeRepeatIndex = segment.repeatIndex
                 }
 
-                activeItemIndex = nextIndex
-                repeatsRemaining = sequenceItems[nextIndex].repeatCount
-                playbackGeneration++
+                val finished = position >= prerender.durationSeconds - 0.02f ||
+                    (!player.isPlaying() && position > 0.05f)
+                if (!finished) return@withFrameNanos
+
+                if (loopEnabled) {
+                    player.seekToSeconds(0f)
+                    sequencePosition = 0f
+                    val first = prerender.segments.firstOrNull()
+                    if (first != null) {
+                        activeItemIndex = first.itemIndex
+                        activeRepeatIndex = first.repeatIndex
+                    }
+                    player.start()
+                } else {
+                    stopPlayback()
+                }
             }
         }
     }
@@ -259,8 +284,8 @@ private fun SequenceScreen(onBack: () -> Unit) {
             ),
         ) {
             itemsIndexed(sequenceItems, key = { _, item -> item.id }) { index, item ->
-                val activeRepeatIndex = if (isOn && index == activeItemIndex) {
-                    (item.repeatCount - repeatsRemaining).coerceIn(0, item.repeatCount - 1)
+                val rowActiveRepeatIndex = if (isOn && index == activeItemIndex) {
+                    activeRepeatIndex
                 } else {
                     null
                 }
@@ -269,12 +294,17 @@ private fun SequenceScreen(onBack: () -> Unit) {
                         item = item,
                         isDragging = isDragging,
                         isActive = index == activeItemIndex,
-                        activeRepeatIndex = activeRepeatIndex,
+                        activeRepeatIndex = rowActiveRepeatIndex,
                         onSelect = {
                             activeItemIndex = index
                             if (isOn) {
-                                repeatsRemaining = item.repeatCount
-                                playbackGeneration++
+                                val prerender = sequencePrerender
+                                val segment = prerender?.segments?.firstOrNull { it.itemIndex == index }
+                                if (prerender != null && segment != null) {
+                                    playbackHolder.value?.player?.seekToSeconds(segment.startTimeSeconds)
+                                    sequencePosition = segment.startTimeSeconds
+                                    activeRepeatIndex = segment.repeatIndex
+                                }
                             }
                         },
                         onDelete = {

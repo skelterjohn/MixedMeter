@@ -5,6 +5,11 @@ internal data class LoopPlayerSlot(
     val schedule: MetronomeClickSchedule,
 )
 
+internal data class SequencePlaybackSlot(
+    val player: MetronomeLoopPlayer,
+    val prerender: SequencePrerender,
+)
+
 fun noteValueForSymbol(note: String): Float {
     return when (note) {
         "♪" -> 0.125f
