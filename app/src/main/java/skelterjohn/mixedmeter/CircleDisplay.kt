@@ -20,8 +20,38 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import skelterjohn.mixedmeter.ui.theme.MixedMeterTheme
+import kotlin.math.atan2
 
 val CircleDisplaySize = 200.dp
+
+const val BpmDialMinBpm = 30f
+const val BpmDialMaxBpm = 220f
+const val BpmDialStartAngle = 120f
+const val BpmDialSweepAngle = 300f
+
+fun bpmToDialAngle(bpm: Float): Float {
+    val ratio = ((bpm - BpmDialMinBpm) / (BpmDialMaxBpm - BpmDialMinBpm)).coerceIn(0f, 1f)
+    return BpmDialStartAngle + ratio * BpmDialSweepAngle
+}
+
+fun pointerAngleDegrees(center: Offset, position: Offset): Float {
+    val dx = position.x - center.x
+    val dy = position.y - center.y
+    var degrees = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble())).toFloat()
+    if (degrees < 0f) degrees += 360f
+    return degrees
+}
+
+fun shortestAngleDelta(fromDegrees: Float, toDegrees: Float): Float {
+    var delta = toDegrees - fromDegrees
+    while (delta > 180f) delta -= 360f
+    while (delta < -180f) delta += 360f
+    return delta
+}
+
+fun bpmChangeForAngleDelta(angleDeltaDegrees: Float): Float {
+    return angleDeltaDegrees / BpmDialSweepAngle * (BpmDialMaxBpm - BpmDialMinBpm)
+}
 
 @Composable
 fun CircleDisplay(
@@ -32,12 +62,7 @@ fun CircleDisplay(
     modifier: Modifier = Modifier,
     showBpmDial: Boolean = true,
 ) {
-    val minBpm = 30f
-    val maxBpm = 220f
-    val startAngle = 120f
-    val sweepAngle = 300f
-    val ratio = ((bpm - minBpm) / (maxBpm - minBpm)).coerceIn(0f, 1f)
-    val currentAngle = startAngle + ratio * sweepAngle
+    val currentAngle = bpmToDialAngle(bpm)
 
     Box(
         modifier = modifier
@@ -81,8 +106,8 @@ fun CircleDisplay(
             if (showBpmDial) {
                 drawArc(
                     color = Color.White.copy(alpha = 0.1f),
-                    startAngle = startAngle,
-                    sweepAngle = sweepAngle,
+                    startAngle = BpmDialStartAngle,
+                    sweepAngle = BpmDialSweepAngle,
                     useCenter = false,
                     style = Stroke(width = 2.dp.toPx()),
                     topLeft = Offset(12.dp.toPx(), 12.dp.toPx()),

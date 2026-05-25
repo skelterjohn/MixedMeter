@@ -102,7 +102,7 @@ import kotlinx.coroutines.launch
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import skelterjohn.mixedmeter.ui.theme.MixedMeterTheme
-import kotlin.math.sqrt
+import kotlin.math.abs
 
 /** Audio halted; UI finishes the current beat on [uiSchedule], then swaps to [newPlayer]. */
 private data class PendingBpmSwap(
@@ -137,6 +137,18 @@ private fun calculateBpm(tempoUnits: Float): Float {
     } else {
         baseBpm + (remainder - 5f)
     }
+}
+
+private fun bpmToTempoUnits(bpm: Float): Float {
+    val clamped = bpm.coerceIn(BpmDialMinBpm, BpmDialMaxBpm)
+    val interval = ((clamped - BpmDialMinBpm) / 5f).toInt().coerceIn(0, 38)
+    val baseBpm = BpmDialMinBpm + interval * 5
+    val remainder = if (clamped - baseBpm < 0.05f) {
+        0f
+    } else {
+        clamped - baseBpm + 5f
+    }
+    return (interval * 10f + remainder).coerceIn(0f, 380f)
 }
 
 class MainActivity : ComponentActivity() {
@@ -512,6 +524,9 @@ class MainActivity : ComponentActivity() {
                                 var dragStartedInCircle = false
                                 var bpmAdjustActive = false
                                 var lastDragPosition = Offset.Zero
+                                var lastPointerAngle = 0f
+                                var totalAngularDrag = 0f
+                                var gestureBpm = 0f
                                 fun isInCircle(position: Offset): Boolean {
                                     val dx = position.x - circleCenter.x
                                     val dy = position.y - circleCenter.y
@@ -521,11 +536,14 @@ class MainActivity : ComponentActivity() {
                                     onDragStart = { startOffset ->
                                         lastDragPosition = startOffset
                                         dragStartedInCircle = isInCircle(startOffset)
-                                        bpmAdjustActive = !dragStartedInCircle
+                                        bpmAdjustActive = false
+                                        totalAngularDrag = 0f
+                                        gestureBpm = calculateBpm(tempoUnits)
+                                        lastPointerAngle = pointerAngleDegrees(circleCenter, startOffset)
                                     },
                                     onDragEnd = {
                                         when {
-                                            dragStartedInCircle && !bpmAdjustActive &&
+                                            dragStartedInCircle && totalAngularDrag < 5f &&
                                                 isInCircle(lastDragPosition) -> toggleMetronome()
                                             bpmAdjustActive -> committedBpm = bpm
                                         }
@@ -535,23 +553,32 @@ class MainActivity : ComponentActivity() {
                                             committedBpm = bpm
                                         }
                                     },
-                                    onDrag = { change, dragAmount ->
+                                    onDrag = { change, _ ->
                                         change.consume()
                                         lastDragPosition = change.position
+                                        val inCircle = isInCircle(change.position)
+                                        if (dragStartedInCircle) {
+                                            if (!inCircle) return@detectDragGestures
+                                            bpmAdjustActive = true
+                                            val angle = pointerAngleDegrees(circleCenter, change.position)
+                                            val delta = shortestAngleDelta(lastPointerAngle, angle)
+                                            lastPointerAngle = angle
+                                            totalAngularDrag += abs(delta)
+                                            gestureBpm = (gestureBpm + bpmChangeForAngleDelta(delta))
+                                                .coerceIn(BpmDialMinBpm, BpmDialMaxBpm)
+                                            tempoUnits = bpmToTempoUnits(gestureBpm)
+                                            return@detectDragGestures
+                                        }
                                         if (!bpmAdjustActive) {
-                                            if (dragStartedInCircle && isInCircle(change.position)) {
-                                                return@detectDragGestures
-                                            }
                                             bpmAdjustActive = true
                                         }
-
-                                        val dx = change.position.x - circleCenter.x
-                                        val dy = change.position.y - circleCenter.y
-                                        val distance = sqrt(dx * dx + dy * dy).coerceAtLeast(100f)
-
-                                        val sensitivity = 50f / distance
-                                        val delta = dragAmount.x - dragAmount.y
-                                        tempoUnits = (tempoUnits + delta * sensitivity).coerceIn(0f, 380f)
+                                        val angle = pointerAngleDegrees(circleCenter, change.position)
+                                        val delta = shortestAngleDelta(lastPointerAngle, angle)
+                                        lastPointerAngle = angle
+                                        totalAngularDrag += abs(delta)
+                                        gestureBpm = (gestureBpm + bpmChangeForAngleDelta(delta))
+                                            .coerceIn(BpmDialMinBpm, BpmDialMaxBpm)
+                                        tempoUnits = bpmToTempoUnits(gestureBpm)
                                     },
                                 )
                             },
