@@ -534,6 +534,7 @@ class MainActivity : ComponentActivity() {
                                 }
                                 detectDragGestures(
                                     onDragStart = { startOffset ->
+                                        focusManager.clearFocus()
                                         lastDragPosition = startOffset
                                         dragStartedInCircle = isInCircle(startOffset)
                                         bpmAdjustActive = false
@@ -994,8 +995,8 @@ fun TimeSignatureSelector(
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
-    var isNumeratorFocused by remember { mutableStateOf(false) }
-    var numeratorEditText by remember { mutableStateOf("") }
+    var hasNumeratorFocus by remember { mutableStateOf(false) }
+    var numeratorEditText by remember(numerator) { mutableStateOf(numerator.toString()) }
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val denominatorOptions = listOf(1, 2, 4, 8, 16, 32)
@@ -1005,12 +1006,18 @@ fun TimeSignatureSelector(
         focusManager.clearFocus()
     }
 
-    val numeratorFieldValue = if (isNumeratorFocused) {
+    LaunchedEffect(numerator) {
+        if (!hasNumeratorFocus) {
+            numeratorEditText = numerator.toString()
+        }
+    }
+
+    val numeratorFieldValue = if (hasNumeratorFocus) {
         numeratorEditText
     } else {
         numerator.toString()
     }
-    val showNumeratorPlaceholder = isNumeratorFocused && numeratorEditText.isEmpty()
+    val showNumeratorPlaceholder = hasNumeratorFocus && numeratorEditText.isEmpty()
 
     Column(
         modifier = modifier,
@@ -1021,6 +1028,7 @@ fun TimeSignatureSelector(
         BasicTextField(
             value = numeratorFieldValue,
             onValueChange = { newText ->
+                if (!hasNumeratorFocus) return@BasicTextField
                 if (newText.contains('\n')) {
                     finishNumeratorEdit()
                     return@BasicTextField
@@ -1048,13 +1056,13 @@ fun TimeSignatureSelector(
                 .width(IntrinsicSize.Min)
                 .widthIn(min = 40.dp)
                 .onFocusChanged { focusState ->
+                    hasNumeratorFocus = focusState.isFocused
                     if (focusState.isFocused) {
-                        isNumeratorFocused = true
-                        numeratorEditText = ""
-                    } else if (isNumeratorFocused) {
-                        isNumeratorFocused = false
+                        numeratorEditText = numerator.toString()
+                    } else {
                         val parsed = numeratorEditText.toIntOrNull()?.takeIf { it in 1..999 }
                         onNumeratorChange(parsed ?: numerator.coerceAtLeast(1))
+                        numeratorEditText = numerator.toString()
                     }
                 },
             decorationBox = { innerTextField ->
