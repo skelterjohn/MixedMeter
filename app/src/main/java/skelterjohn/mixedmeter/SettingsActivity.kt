@@ -71,15 +71,6 @@ class SettingsActivity : ComponentActivity() {
                             .padding(16.dp)
                     ) {
                         ToneSettingDropdown(
-                            label = "Beat tone",
-                            selectedValue = beatToneSetting,
-                            onSelect = { value ->
-                                scope.launch {
-                                    dataStore.edit { it[TONE_KEY] = value }
-                                }
-                            },
-                        )
-                        ToneSettingDropdown(
                             label = "Lead tone",
                             selectedValue = leadToneSetting,
                             onSelect = { value ->
@@ -88,6 +79,15 @@ class SettingsActivity : ComponentActivity() {
                                 }
                             },
                             modifier = Modifier.padding(top = 24.dp),
+                        )
+                        ToneSettingDropdown(
+                            label = "Beat tone",
+                            selectedValue = beatToneSetting,
+                            onSelect = { value ->
+                                scope.launch {
+                                    dataStore.edit { it[TONE_KEY] = value }
+                                }
+                            },
                         )
                     }
                 }
