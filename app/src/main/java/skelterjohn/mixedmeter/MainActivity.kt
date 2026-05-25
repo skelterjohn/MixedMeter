@@ -13,6 +13,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.ScrollState
@@ -975,19 +976,18 @@ private fun TimeSignatureSelectorCell(
         modifier = Modifier.width(MeterTimeSignatureSlotMinWidth),
         contentAlignment = Alignment.Center,
     ) {
-        Box {
-            key(timeSignature.numerator, timeSignature.denominator) {
+        Box(
+            modifier = Modifier.pointerInput(Unit) {
+                detectTapGestures(onLongPress = { showMenu = true })
+            },
+        ) {
+            key(index, timeSignature.denominator) {
                 TimeSignatureSelector(
                     numerator = timeSignature.numerator,
                     onNumeratorChange = onNumeratorChange,
                     denominator = timeSignature.denominator,
                     onDenominatorChange = onDenominatorChange,
-                    modifier = Modifier
-                    .padding(horizontal = 0.dp)
-                    .combinedClickable(
-                        onClick = { /* normal clicks handled by children */ },
-                        onLongClick = { showMenu = true },
-                    ),
+                    modifier = Modifier.padding(horizontal = 0.dp),
                 )
             }
             DropdownMenu(
@@ -1064,6 +1064,7 @@ fun TimeSignatureSelector(
     var expanded by remember { mutableStateOf(false) }
     var isEditingNumerator by remember { mutableStateOf(false) }
     var numeratorEditText by remember { mutableStateOf("") }
+    var numeratorHadFocus by remember { mutableStateOf(false) }
     val numeratorFocusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -1085,7 +1086,12 @@ fun TimeSignatureSelector(
 
     LaunchedEffect(isEditingNumerator) {
         if (isEditingNumerator) {
-            numeratorFocusRequester.requestFocus()
+            numeratorHadFocus = false
+            try {
+                numeratorFocusRequester.requestFocus()
+            } catch (_: IllegalStateException) {
+                // Not yet attached; onFocusChanged will run once focus lands.
+            }
         }
     }
 
@@ -1129,7 +1135,9 @@ fun TimeSignatureSelector(
                         .widthIn(min = 40.dp)
                         .focusRequester(numeratorFocusRequester)
                         .onFocusChanged { focusState ->
-                            if (!focusState.isFocused && isEditingNumerator) {
+                            if (focusState.isFocused) {
+                                numeratorHadFocus = true
+                            } else if (isEditingNumerator && numeratorHadFocus) {
                                 commitNumeratorEdit()
                             }
                         },
@@ -1151,10 +1159,14 @@ fun TimeSignatureSelector(
                 Text(
                     text = numerator.coerceAtLeast(1).toString(),
                     style = numeratorTextStyle,
-                    modifier = Modifier.clickable {
-                        numeratorEditText = ""
-                        isEditingNumerator = true
-                    },
+                    modifier = Modifier
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) {
+                            numeratorEditText = ""
+                            isEditingNumerator = true
+                        },
                 )
             }
         }
