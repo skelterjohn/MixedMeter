@@ -9,7 +9,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 
 val THEME_KEY = stringPreferencesKey("theme_setting")
 
-val THEME_OPTIONS = listOf("Gray", "Slate", "Sand", "Moss", "Dusk", "Lava")
+val THEME_OPTIONS = listOf("Gray", "Slate", "Sand", "Moss", "Dusk", "Lava", "Dark", "Light")
 
 const val DEFAULT_THEME = "Gray"
 
@@ -38,6 +38,8 @@ fun appThemeForName(name: String): AppThemeColors =
         "Moss" -> AppThemes.moss
         "Dusk" -> AppThemes.dusk
         "Lava" -> AppThemes.lava
+        "Dark" -> AppThemes.dark
+        "Light" -> AppThemes.light
         else -> AppThemes.gray
     }
 
@@ -130,6 +132,36 @@ object AppThemes {
         embossHighlight = Color(0xFFFFB07A),
         embossShadow = Color(0xFF6E220C),
         dialogSurface = Color(0xFFE88A58),
+    )
+
+    val dark = AppThemeColors(
+        name = "Dark",
+        background = Color(0xFF121212),
+        buttonSurface = Color(0xFF2A2A2A),
+        buttonBorder = Color(0xFF000000),
+        iconTint = Color(0xFF8A8A8A),
+        text = Color(0xFF8A8A8A),
+        embossSurface = Color(0xFF1E1E1E),
+        embossSurfaceActive = Color(0xFF383838),
+        embossSurfaceDragging = Color(0xFF2E2E2E),
+        embossHighlight = Color(0xFF4A4A4A),
+        embossShadow = Color(0xFF000000),
+        dialogSurface = Color(0xFF2A2A2A),
+    )
+
+    val light = AppThemeColors(
+        name = "Light",
+        background = Color(0xFFFFFFFF),
+        buttonSurface = Color(0xFFF0F0F0),
+        buttonBorder = Color(0xFFCCCCCC),
+        iconTint = Color(0xFF1A1A1A),
+        text = Color(0xFF1A1A1A),
+        embossSurface = Color(0xFFE8E8E8),
+        embossSurfaceActive = Color(0xFFFFFFFF),
+        embossSurfaceDragging = Color(0xFFF5F5F5),
+        embossHighlight = Color(0xFFFFFFFF),
+        embossShadow = Color(0xFFB0B0B0),
+        dialogSurface = Color(0xFFF5F5F5),
     )
 }
 
