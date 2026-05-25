@@ -10,20 +10,20 @@ object MetronomeClickWav {
     /** Short metronome clicks do not need CD bandwidth; halves PCM size vs 44.1 kHz. */
     const val SAMPLE_RATE = 22_050
 
-    fun clickSamples(useBeepTone: Boolean): ShortArray = generateClickSamples(useBeepTone)
+    fun clickSamples(tone: String): ShortArray = generateClickSamples(tone)
 
-    fun cacheFile(context: Context, useBeepTone: Boolean): File {
-        val file = File(context.cacheDir, if (useBeepTone) "metronome_beep.wav" else "metronome_bip.wav")
+    fun cacheFile(context: Context, tone: String): File {
+        val file = File(context.cacheDir, "metronome_${tone.lowercase()}.wav")
         if (!file.exists()) {
-            writeMonoPcmWav(file, generateClickSamples(useBeepTone))
+            writeMonoPcmWav(file, generateClickSamples(tone))
         }
         return file
     }
 
-    private fun generateClickSamples(useBeep: Boolean): ShortArray {
+    private fun generateClickSamples(tone: String): ShortArray {
         val durationMs = 8
         val sampleCount = SAMPLE_RATE * durationMs / 1000
-        val frequencyHz = if (useBeep) 880.0 else 1_200.0
+        val frequencyHz = if (tone == "Bop") 880.0 else 1_200.0
         val amplitude = Short.MAX_VALUE * 0.45
         return ShortArray(sampleCount) { i ->
             val t = i.toDouble() / SAMPLE_RATE

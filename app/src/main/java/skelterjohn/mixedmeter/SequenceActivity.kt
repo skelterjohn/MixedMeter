@@ -197,12 +197,12 @@ private fun SequenceScreen(onBack: () -> Unit) {
     }
 
     val beatToneSetting by remember {
-        context.dataStore.data.map { preferences -> preferences[TONE_KEY] ?: "bip" }
-    }.collectAsState(initial = "bip")
+        context.dataStore.data.map { preferences -> preferences[TONE_KEY] ?: DEFAULT_TONE }
+    }.collectAsState(initial = DEFAULT_TONE)
 
     val leadToneSetting by remember {
-        context.dataStore.data.map { preferences -> preferences[LEAD_TONE_KEY] ?: "bip" }
-    }.collectAsState(initial = "bip")
+        context.dataStore.data.map { preferences -> preferences[LEAD_TONE_KEY] ?: DEFAULT_TONE }
+    }.collectAsState(initial = DEFAULT_TONE)
 
     val activeSegment by remember {
         derivedStateOf {
@@ -297,8 +297,8 @@ private fun SequenceScreen(onBack: () -> Unit) {
                         renderSequence(
                             items = sequenceItems,
                             tempoPercent = sequencePercent,
-                            useBeepBeatTone = beatToneSetting == "beep",
-                            useBeepLeadTone = leadToneSetting == "beep",
+                            beatTone = beatToneSetting,
+                            leadTone = leadToneSetting,
                         )
                     }
                     sequencePrerender = prerender
@@ -331,8 +331,8 @@ private fun SequenceScreen(onBack: () -> Unit) {
             renderSequence(
                 items = sequenceItems,
                 tempoPercent = sequencePercent,
-                useBeepBeatTone = beatToneSetting == "beep",
-                useBeepLeadTone = leadToneSetting == "beep",
+                beatTone = beatToneSetting,
+                leadTone = leadToneSetting,
             )
         }
     }

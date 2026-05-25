@@ -45,12 +45,12 @@ class SettingsActivity : ComponentActivity() {
                 val scope = rememberCoroutineScope()
                 val beatToneSetting by remember {
                     dataStore.data
-                        .map { preferences -> preferences[TONE_KEY] ?: "bip" }
-                }.collectAsState(initial = "bip")
+                        .map { preferences -> preferences[TONE_KEY] ?: DEFAULT_TONE }
+                }.collectAsState(initial = DEFAULT_TONE)
                 val leadToneSetting by remember {
                     dataStore.data
-                        .map { preferences -> preferences[LEAD_TONE_KEY] ?: "bip" }
-                }.collectAsState(initial = "bip")
+                        .map { preferences -> preferences[LEAD_TONE_KEY] ?: DEFAULT_TONE }
+                }.collectAsState(initial = DEFAULT_TONE)
 
                 Scaffold(
                     topBar = {
@@ -107,7 +107,7 @@ private fun ToneSettingDropdown(
     Text(label, modifier = modifier.padding(bottom = 8.dp))
 
     var expanded by remember { mutableStateOf(false) }
-    val selectedOption = TONE_OPTIONS.find { it.second == selectedValue } ?: TONE_OPTIONS[0]
+    val displayValue = selectedValue.takeIf { it in TONE_OPTIONS } ?: TONE_OPTIONS.first()
 
     ExposedDropdownMenuBox(
         expanded = expanded,
@@ -115,7 +115,7 @@ private fun ToneSettingDropdown(
         modifier = Modifier.fillMaxWidth()
     ) {
         TextField(
-            value = selectedOption.first,
+            value = displayValue,
             onValueChange = {},
             readOnly = true,
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
@@ -128,11 +128,11 @@ private fun ToneSettingDropdown(
             expanded = expanded,
             onDismissRequest = { expanded = false }
         ) {
-            TONE_OPTIONS.forEach { option ->
+            TONE_OPTIONS.forEach { tone ->
                 DropdownMenuItem(
-                    text = { Text(option.first) },
+                    text = { Text(tone) },
                     onClick = {
-                        onSelect(option.second)
+                        onSelect(tone)
                         expanded = false
                     }
                 )

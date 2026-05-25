@@ -13,14 +13,14 @@ object MetronomeLoopRenderer {
 
     fun render(
         schedule: MetronomeClickSchedule,
-        useBeepBeatTone: Boolean,
-        useBeepLeadTone: Boolean,
+        beatTone: String,
+        leadTone: String,
     ): MetronomeLoop {
-        val beatClick = MetronomeClickWav.clickSamples(useBeepBeatTone)
-        val leadClick = if (useBeepBeatTone == useBeepLeadTone) {
+        val beatClick = MetronomeClickWav.clickSamples(beatTone)
+        val leadClick = if (beatTone == leadTone) {
             beatClick
         } else {
-            MetronomeClickWav.clickSamples(useBeepLeadTone)
+            MetronomeClickWav.clickSamples(leadTone)
         }
 
         val hasTimeSignatures =
@@ -46,9 +46,10 @@ object MetronomeLoopRenderer {
             val periodNanos = schedule.beatPeriodNanos
             val beatCount = (cycleNanos / periodNanos).toInt()
             for (beat in 0 until beatCount) {
+                val click = if (beat == 0) leadClick else beatClick
                 val startFrame = nanosToFrames(beat * periodNanos)
                     .coerceIn(0, cycleFrameCount - 1)
-                mixAt(buffer, startFrame, beatClick)
+                mixAt(buffer, startFrame, click)
             }
         }
 

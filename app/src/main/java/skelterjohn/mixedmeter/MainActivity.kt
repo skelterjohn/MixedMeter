@@ -122,7 +122,9 @@ val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "se
 private val TEMPO_UNITS_KEY = floatPreferencesKey("tempo_units")
 val TONE_KEY = stringPreferencesKey("tone_setting")
 val LEAD_TONE_KEY = stringPreferencesKey("lead_tone_setting")
-val TONE_OPTIONS = listOf("Bip (Soft)" to "bip", "Beep (High)" to "beep")
+val TONE_OPTIONS = listOf("Bop", "Bip")
+
+const val DEFAULT_TONE = "Bop"
 private val SELECTED_NOTE_KEY = stringPreferencesKey("selected_note")
 private val TIME_SIGNATURES_KEY = stringPreferencesKey("time_signatures")
 
@@ -226,13 +228,13 @@ class MainActivity : ComponentActivity() {
 
                 val beatToneSetting by remember {
                     context.dataStore.data
-                        .map { preferences -> preferences[TONE_KEY] ?: "bip" }
-                }.collectAsState(initial = "bip")
+                        .map { preferences -> preferences[TONE_KEY] ?: DEFAULT_TONE }
+                }.collectAsState(initial = DEFAULT_TONE)
 
                 val leadToneSetting by remember {
                     context.dataStore.data
-                        .map { preferences -> preferences[LEAD_TONE_KEY] ?: "bip" }
-                }.collectAsState(initial = "bip")
+                        .map { preferences -> preferences[LEAD_TONE_KEY] ?: DEFAULT_TONE }
+                }.collectAsState(initial = DEFAULT_TONE)
 
                 val selectedNoteValue by remember {
                     derivedStateOf { noteValueForSymbol(selectedNote) }
@@ -377,8 +379,8 @@ class MainActivity : ComponentActivity() {
                             val newPlayer = withContext(Dispatchers.Default) {
                                 val loop = MetronomeLoopRenderer.render(
                                     schedule = schedule,
-                                    useBeepBeatTone = beatToneSetting == "beep",
-                                    useBeepLeadTone = leadToneSetting == "beep",
+                                    beatTone = beatToneSetting,
+                                    leadTone = leadToneSetting,
                                 )
                                 MetronomeLoopPlayer.create(context, loop)
                             }
@@ -398,8 +400,8 @@ class MainActivity : ComponentActivity() {
                     val newPlayer = withContext(Dispatchers.Default) {
                         val loop = MetronomeLoopRenderer.render(
                             schedule = schedule,
-                            useBeepBeatTone = beatToneSetting == "beep",
-                            useBeepLeadTone = leadToneSetting == "beep",
+                            beatTone = beatToneSetting,
+                            leadTone = leadToneSetting,
                         )
                         MetronomeLoopPlayer.create(context, loop)
                     }

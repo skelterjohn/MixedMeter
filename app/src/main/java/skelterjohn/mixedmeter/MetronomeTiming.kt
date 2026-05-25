@@ -10,7 +10,7 @@ data class BeatBoxTiming(
 data class MetronomeClickSchedule(
     val boxes: List<BeatBoxTiming>,
     val clickOffsetsNanos: LongArray,
-    /** Parallel to [clickOffsetsNanos]; true for the first beat of each time signature section. */
+    /** Parallel to [clickOffsetsNanos]; true → [leadTone] click (downbeat of each section). */
     val clickUseLeadTone: BooleanArray,
     val totalCycleNanos: Long,
     val beatPeriodNanos: Long,
