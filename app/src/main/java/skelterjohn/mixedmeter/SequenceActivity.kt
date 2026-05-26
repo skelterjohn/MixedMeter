@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -145,7 +146,9 @@ private fun SequenceScreen(onBack: () -> Unit) {
     var sequencePercent by remember { mutableFloatStateOf(PercentDialMid) }
     var circleCenter by remember { mutableStateOf(Offset.Zero) }
     var circleDragCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
-    val circleRadiusPx = with(density) { (CircleDisplaySize / 2).toPx() }
+    var circleRadiusPx by remember(density) {
+        mutableFloatStateOf(with(density) { (CircleDisplaySize / 2).toPx() })
+    }
     var playbackStartSeconds by remember { mutableFloatStateOf(0f) }
     var prerenderToken by remember { mutableIntStateOf(0) }
     var sequencePrerender by remember { mutableStateOf<SequencePrerender?>(null) }
@@ -684,6 +687,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
             }
             Box(
                 modifier = Modifier
+                    .wrapContentSize()
                     .onGloballyPositioned { circleDragCoordinates = it }
                     .pointerInput(circleCenter, circleRadiusPx, isOn) {
                         var dragStartedInCircle = false
@@ -755,6 +759,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
                     showDialRangeTicks = true,
                     bottomHalfLabel = "${sequencePercent.roundToInt()}%",
                     modifier = Modifier.onGloballyPositioned { coords ->
+                        circleRadiusPx = minOf(coords.size.width, coords.size.height) / 2f
                         circleDragCoordinates?.let { boxCoords ->
                             circleCenter = boxCoords.localPositionOf(
                                 coords,

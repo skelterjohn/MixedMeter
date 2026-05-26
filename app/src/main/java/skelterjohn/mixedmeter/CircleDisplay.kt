@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -22,6 +23,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import skelterjohn.mixedmeter.ui.theme.MixedMeterTheme
@@ -215,19 +217,23 @@ fun CircleDisplay(
 ) {
     val currentAngle = dialAngleDegrees ?: bpmToDialAngle(bpm)
     val density = LocalDensity.current
-    val circleSizePx = with(density) { CircleDisplaySize.toPx() }
     val lineEndGapPx = with(density) { BpmDialLineEndInset.toPx() }
     val clickInteractionSource = remember { MutableInteractionSource() }
 
-    Box(
-        modifier = modifier
-            .size(CircleDisplaySize)
-            .clickable(
-                onClick = onToggle,
-                indication = null,
-                interactionSource = clickInteractionSource,
-            ),
-    ) {
+    // Shrink uniformly when horizontal space is tight (e.g. sequence bottom row); never stretch.
+    BoxWithConstraints(modifier = modifier) {
+        val side: Dp = minOf(CircleDisplaySize, maxWidth, maxHeight)
+        val circleSizePx = with(density) { side.toPx() }
+
+        Box(
+            modifier = Modifier
+                .size(side)
+                .clickable(
+                    onClick = onToggle,
+                    indication = null,
+                    interactionSource = clickInteractionSource,
+                ),
+        ) {
         if (showBpmDial && showBpmRangeLabels) {
             CircleOverlayLabel(
                 text = BpmDialMinBpm.toInt().toString(),
@@ -259,7 +265,8 @@ fun CircleDisplay(
                     .border(width = 8.dp, color = Color.Black, shape = CircleShape),
             )
             Canvas(modifier = Modifier.fillMaxSize()) {
-                val innerRadius = size.width / 2 - 12.dp.toPx()
+                val diameter = minOf(size.width, size.height)
+                val innerRadius = diameter / 2f - 12.dp.toPx()
                 val lineEndY = with(density) { -BpmDialLineEndInset.toPx() }
 
                 if (isOn) {
@@ -291,17 +298,20 @@ fun CircleDisplay(
                         sweepAngle = BpmDialSweepAngle,
                         useCenter = false,
                         style = Stroke(width = 2.dp.toPx()),
-                        topLeft = Offset(12.dp.toPx(), 12.dp.toPx()),
+                        topLeft = Offset(
+                            (size.width - diameter) / 2f + 12.dp.toPx(),
+                            (size.height - diameter) / 2f + 12.dp.toPx(),
+                        ),
                         size = androidx.compose.ui.geometry.Size(
-                            size.width - 24.dp.toPx(),
-                            size.height - 24.dp.toPx(),
+                            diameter - 24.dp.toPx(),
+                            diameter - 24.dp.toPx(),
                         ),
                     )
                     rotate(degrees = currentAngle - 270f) {
                         drawLine(
                             color = Color.White,
                             start = center,
-                            end = Offset(x = size.width / 2f, y = lineEndY),
+                            end = Offset(x = center.x, y = lineEndY),
                             strokeWidth = 8.dp.toPx(),
                         )
                     }
@@ -319,6 +329,7 @@ fun CircleDisplay(
                 text = label,
                 positionPx = circleBottomHalfLabelOffsetPx(circleSizePx),
             )
+        }
         }
     }
 }
