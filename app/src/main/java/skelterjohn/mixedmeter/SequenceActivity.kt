@@ -235,15 +235,6 @@ private fun SequenceScreen(onBack: () -> Unit) {
         }
     }
 
-    val reorderableState = rememberReorderableLazyListState(lazyListState) { from, to ->
-        val reordered = sequenceItems.toMutableList().apply {
-            add(to.index, removeAt(from.index))
-        }
-        scope.launch {
-            context.setSequenceItems(reordered)
-        }
-    }
-
     fun pausePlayback() {
         playbackHolder.value?.player?.stop()
         playbackHolder.value?.player?.release()
@@ -529,53 +520,73 @@ private fun SequenceScreen(onBack: () -> Unit) {
                 .weight(1f)
                 .fillMaxWidth(),
         ) {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(RectangleShape),
-                state = lazyListState,
-                contentPadding = PaddingValues(vertical = 8.dp),
-            ) {
-            itemsIndexed(sequenceItems, key = { _, item -> item.id }) { index, item ->
-                val rowActiveRepeatIndex = if (index == activeItemIndex) activeRepeatIndex else null
-                ReorderableItem(reorderableState, key = item.id) { isDragging ->
-                    SequenceItemRow(
-                        item = item,
-                        tempoPercent = sequencePercent,
-                        isDragging = isDragging,
-                        isActive = index == activeItemIndex,
-                        activeRepeatIndex = rowActiveRepeatIndex,
-                        onSelect = {
-                            if (index != activeItemIndex) {
-                                activeRepeatIndex = null
-                            }
-                            activeItemIndex = index
-                            val prerender = sequencePrerender ?: return@SequenceItemRow
-                            val segment = resolveStartSegment(prerender) ?: return@SequenceItemRow
-                            seekToSegment(segment)
-                        },
-                        onRepeatClick = { repeatIndex ->
-                            activeItemIndex = index
-                            sequencePrerender?.let { prerender ->
-                                segmentForRepeat(index, repeatIndex, prerender.segments)
-                                    ?.let { segment -> seekToSegment(segment) }
-                            }
-                        },
-                        onDelete = {
-                            scope.launch {
-                                context.removeSequenceItemById(item.id)
-                            }
-                        },
-                        onRepeatCountChange = { repeatCount ->
-                            scope.launch {
-                                context.updateSequenceItemRepeatCount(item.id, repeatCount)
-                            }
-                        },
-                        rowDragModifier = Modifier.draggableHandle(),
-                    )
+            Column(modifier = Modifier.fillMaxSize()) {
+                val reorderableState = rememberReorderableLazyListState(lazyListState) { from, to ->
+                    val reordered = sequenceItems.toMutableList().apply {
+                        add(to.index, removeAt(from.index))
+                    }
+                    scope.launch {
+                        context.setSequenceItems(reordered)
+                    }
                 }
-            }
-            item {
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .clip(RectangleShape),
+                    state = lazyListState,
+                    contentPadding = PaddingValues(vertical = 8.dp),
+                ) {
+                    itemsIndexed(sequenceItems, key = { _, item -> item.id }) { index, item ->
+                        val rowActiveRepeatIndex = if (index == activeItemIndex) activeRepeatIndex else null
+                        ReorderableItem(
+                            state = reorderableState,
+                            key = item.id,
+                            animateItemModifier = Modifier,
+                        ) { isDragging ->
+                            SequenceItemRow(
+                                item = item,
+                                tempoPercent = sequencePercent,
+                                isDragging = isDragging,
+                                isActive = index == activeItemIndex,
+                                activeRepeatIndex = rowActiveRepeatIndex,
+                                onSelect = {
+                                    if (index != activeItemIndex) {
+                                        activeRepeatIndex = null
+                                    }
+                                    activeItemIndex = index
+                                    val prerender = sequencePrerender ?: return@SequenceItemRow
+                                    val segment = resolveStartSegment(prerender) ?: return@SequenceItemRow
+                                    seekToSegment(segment)
+                                },
+                                onRepeatClick = { repeatIndex ->
+                                    activeItemIndex = index
+                                    sequencePrerender?.let { prerender ->
+                                        segmentForRepeat(index, repeatIndex, prerender.segments)
+                                            ?.let { segment -> seekToSegment(segment) }
+                                    }
+                                },
+                                onDelete = {
+                                    if (index == activeItemIndex) {
+                                        activeItemIndex = (index - 1).coerceAtLeast(0)
+                                        activeRepeatIndex = null
+                                    } else if (index < activeItemIndex) {
+                                        activeItemIndex--
+                                    }
+                                    scope.launch {
+                                        context.removeSequenceItemById(item.id)
+                                    }
+                                },
+                                onRepeatCountChange = { repeatCount ->
+                                    scope.launch {
+                                        context.updateSequenceItemRepeatCount(item.id, repeatCount)
+                                    }
+                                },
+                                rowDragModifier = Modifier.draggableHandle(),
+                            )
+                        }
+                    }
+                }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -596,7 +607,6 @@ private fun SequenceScreen(onBack: () -> Unit) {
                         color = theme.text,
                     )
                 }
-            }
             }
             if (showSequenceMap) {
                 SequenceItemMap(
