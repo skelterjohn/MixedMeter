@@ -4,8 +4,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -17,13 +23,41 @@ import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 val BottomNavButtonSize = 100.dp
 val BottomNavEdgePadding = 16.dp
 val SequenceNavIconButtonSize = 48.dp
+
+/** Minimum bottom inset when the system reports none (older edge-to-edge, or consumed insets). */
+private val MinimumNavigationBarHeight = 48.dp
+
+/**
+ * Bottom inset for the system navigation bar (3-button or gesture).
+ *
+ * Uses the largest of [WindowInsets.navigationBars], [WindowInsets.systemBars], and
+ * [WindowInsets.safeDrawing] so Android 15 edge-to-edge (including translucent 3-button nav)
+ * gets enough clearance. When all are zero, [MinimumNavigationBarHeight] is used.
+ */
+@Composable
+fun navigationBarBottomInset(): Dp {
+    val navBars = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val systemBars = WindowInsets.systemBars.asPaddingValues().calculateBottomPadding()
+    val safeDrawing = WindowInsets.safeDrawing.asPaddingValues().calculateBottomPadding()
+    return maxOf(navBars, systemBars, safeDrawing)
+        .takeIf { it > 0.dp }
+        ?: MinimumNavigationBarHeight
+}
+
+/** Reserves space above the system navigation bar (back / home / recents or gesture handle). */
+@Composable
+fun Modifier.navigationBarBottomPadding(): Modifier = composed {
+    padding(bottom = navigationBarBottomInset())
+}
 
 @Composable
 fun SequenceNavIconButton(

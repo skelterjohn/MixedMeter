@@ -501,7 +501,8 @@ private fun SequenceScreen(onBack: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(theme.background),
+            .background(theme.background)
+            .navigationBarBottomPadding(),
     ) {
         SequenceNameField(
             name = sequenceName,
