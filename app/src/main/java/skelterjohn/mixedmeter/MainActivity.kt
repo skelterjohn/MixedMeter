@@ -550,6 +550,7 @@ class MainActivity : ComponentActivity() {
                     val focusManager = LocalFocusManager.current
                     val circleRadiusPx = with(LocalDensity.current) { 100.dp.toPx() }
                     val toggleMetronome = {
+                        focusManager.clearFocus()
                         if (isOn) {
                             pendingBpmSwap?.newPlayer?.release()
                             pendingBpmSwap = null
@@ -799,6 +800,7 @@ class MainActivity : ComponentActivity() {
                                                             .background(boxColor)
                                                             .border(1.dp, theme.text)
                                                             .clickable {
+                                                                focusManager.clearFocus()
                                                                 beatClickActive = toggleBeatClickActive(
                                                                     beatClickActive,
                                                                     index,
@@ -981,17 +983,14 @@ private fun TimeSignatureSelectorCell(
         modifier = Modifier.width(MeterTimeSignatureSlotMinWidth),
         contentAlignment = Alignment.Center,
     ) {
-        Box(
-            modifier = Modifier.pointerInput(Unit) {
-                detectTapGestures(onLongPress = { showMenu = true })
-            },
-        ) {
+        Box {
             key(index, timeSignature.denominator) {
                 TimeSignatureSelector(
                     numerator = timeSignature.numerator,
                     onNumeratorChange = onNumeratorChange,
                     denominator = timeSignature.denominator,
                     onDenominatorChange = onDenominatorChange,
+                    onLongClick = { showMenu = true },
                     modifier = Modifier.padding(horizontal = 0.dp),
                 )
             }
@@ -1063,7 +1062,8 @@ fun TimeSignatureSelector(
     onNumeratorChange: (Int) -> Unit,
     denominator: Int,
     onDenominatorChange: (Int) -> Unit,
-    modifier: Modifier = Modifier
+    onLongClick: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
 ) {
     val theme = currentAppTheme()
     var expanded by remember { mutableStateOf(false) }
@@ -1082,21 +1082,23 @@ fun TimeSignatureSelector(
     )
 
     fun commitNumeratorEdit() {
+        if (!isEditingNumerator) return
         val parsed = numeratorEditText.toIntOrNull()?.takeIf { it in 1..999 }
         onNumeratorChange(parsed ?: numerator.coerceAtLeast(1))
         isEditingNumerator = false
+        numeratorHadFocus = false
         keyboardController?.hide()
         focusManager.clearFocus()
     }
 
     LaunchedEffect(isEditingNumerator) {
-        if (isEditingNumerator) {
-            numeratorHadFocus = false
-            try {
-                numeratorFocusRequester.requestFocus()
-            } catch (_: IllegalStateException) {
-                // Not yet attached; onFocusChanged will run once focus lands.
-            }
+        if (!isEditingNumerator) return@LaunchedEffect
+        numeratorHadFocus = false
+        withFrameNanos { }
+        try {
+            numeratorFocusRequester.requestFocus()
+        } catch (_: IllegalStateException) {
+            isEditingNumerator = false
         }
     }
 
@@ -1164,14 +1166,27 @@ fun TimeSignatureSelector(
                 Text(
                     text = numerator.coerceAtLeast(1).toString(),
                     style = numeratorTextStyle,
-                    modifier = Modifier
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                        ) {
-                            numeratorEditText = ""
-                            isEditingNumerator = true
+                    modifier = Modifier.then(
+                        if (onLongClick != null) {
+                            Modifier.combinedClickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = {
+                                    numeratorEditText = ""
+                                    isEditingNumerator = true
+                                },
+                                onLongClick = onLongClick,
+                            )
+                        } else {
+                            Modifier.clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                            ) {
+                                numeratorEditText = ""
+                                isEditingNumerator = true
+                            }
                         },
+                    ),
                 )
             }
         }
@@ -1186,7 +1201,16 @@ fun TimeSignatureSelector(
                 textAlign = TextAlign.Center,
                 modifier = Modifier
                     .widthIn(min = 40.dp)
-                    .clickable { expanded = true }
+                    .then(
+                        if (onLongClick != null) {
+                            Modifier.combinedClickable(
+                                onClick = { expanded = true },
+                                onLongClick = onLongClick,
+                            )
+                        } else {
+                            Modifier.clickable { expanded = true }
+                        },
+                    ),
             )
             DropdownMenu(
                 expanded = expanded,
