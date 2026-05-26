@@ -9,9 +9,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -37,20 +35,15 @@ val SequenceNavIconButtonSize = 48.dp
 private val MinimumNavigationBarHeight = 48.dp
 
 /**
- * Bottom inset for the system navigation bar (3-button or gesture).
+ * Bottom inset for the system navigation bar only (not the IME).
  *
- * Uses the largest of [WindowInsets.navigationBars], [WindowInsets.systemBars], and
- * [WindowInsets.safeDrawing] so Android 15 edge-to-edge (including translucent 3-button nav)
- * gets enough clearance. When all are zero, [MinimumNavigationBarHeight] is used.
+ * Do not use [WindowInsets.safeDrawing] here — it includes keyboard height when the IME is open,
+ * which would push the whole UI (including the dial) upward.
  */
 @Composable
 fun navigationBarBottomInset(): Dp {
     val navBars = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val systemBars = WindowInsets.systemBars.asPaddingValues().calculateBottomPadding()
-    val safeDrawing = WindowInsets.safeDrawing.asPaddingValues().calculateBottomPadding()
-    return maxOf(navBars, systemBars, safeDrawing)
-        .takeIf { it > 0.dp }
-        ?: MinimumNavigationBarHeight
+    return navBars.takeIf { it > 0.dp } ?: MinimumNavigationBarHeight
 }
 
 /** Reserves space above the system navigation bar (back / home / recents or gesture handle). */
