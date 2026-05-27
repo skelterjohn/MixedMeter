@@ -9,6 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -602,18 +603,23 @@ private fun SequenceScreen(onBack: () -> Unit) {
             }
         }
 
-        Row(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(BottomNavEdgePadding),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Bottom,
         ) {
+            val iconButtonSize = sequenceNavIconButtonSize(maxWidth)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Bottom,
+            ) {
             SequenceNavControls(
                 loopEnabled = loopEnabled,
                 onLoopChange = { loopEnabled = it },
                 hasSavedSequence = hasSavedSequence,
                 hasItems = sequenceItems.isNotEmpty(),
+                iconButtonSize = iconButtonSize,
                 onSave = { showSaveDialog = true },
                 onLoad = { showLoadDialog = true },
                 onClear = {
@@ -722,6 +728,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
                         }
                     },
                 )
+            }
             }
         }
     }

@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -41,6 +42,8 @@ import androidx.compose.ui.unit.dp
 val BottomNavButtonSize = 100.dp
 val BottomNavEdgePadding = 16.dp
 val SequenceNavIconButtonSize = 48.dp
+val SequenceNavIconButtonMinSize = 36.dp
+private val SequenceNavControlsDialGap = 12.dp
 
 /** Minimum bottom inset when the system reports none (older edge-to-edge, or consumed insets). */
 private val MinimumNavigationBarHeight = 48.dp
@@ -63,6 +66,16 @@ fun Modifier.navigationBarBottomPadding(): Modifier = composed {
     padding(bottom = navigationBarBottomInset())
 }
 
+fun sequenceNavIconButtonSize(maxRowWidth: Dp): Dp {
+    val defaultRowWidth = SequenceNavIconButtonSize * 3 + 8.dp
+    val maxLeftWidth = maxRowWidth - CircleDisplaySize - SequenceNavControlsDialGap
+    if (maxLeftWidth >= defaultRowWidth) return SequenceNavIconButtonSize
+    return minOf(
+        SequenceNavIconButtonSize,
+        ((maxLeftWidth - 8.dp) / 3).coerceAtLeast(SequenceNavIconButtonMinSize),
+    )
+}
+
 @Composable
 fun SequenceNavControls(
     loopEnabled: Boolean,
@@ -74,8 +87,10 @@ fun SequenceNavControls(
     onClear: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    iconButtonSize: Dp = SequenceNavIconButtonSize,
 ) {
     val theme = currentAppTheme()
+    val iconSize = (iconButtonSize.value * 28f / SequenceNavIconButtonSize.value).dp
     Column(
         modifier = modifier.height(CircleDisplaySize),
         verticalArrangement = Arrangement.SpaceBetween,
@@ -98,18 +113,24 @@ fun SequenceNavControls(
                 icon = Icons.Default.Save,
                 contentDescription = "Save sequence",
                 onClick = onSave,
+                buttonSize = iconButtonSize,
+                iconSize = iconSize,
             )
             SequenceNavIconButton(
                 icon = Icons.Default.FolderOpen,
                 contentDescription = "Load sequence",
                 enabled = hasSavedSequence,
                 onClick = onLoad,
+                buttonSize = iconButtonSize,
+                iconSize = iconSize,
             )
             SequenceNavIconButton(
                 icon = Icons.Default.Delete,
                 contentDescription = "Clear sequence",
                 enabled = hasItems,
                 onClick = onClear,
+                buttonSize = iconButtonSize,
+                iconSize = iconSize,
             )
         }
         BottomNavIconButton(onClick = onBack) {
@@ -125,11 +146,13 @@ fun SequenceNavIconButton(
     contentDescription: String,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    buttonSize: Dp = SequenceNavIconButtonSize,
+    iconSize: Dp = 28.dp,
 ) {
     val theme = currentAppTheme()
     Box(
         modifier = modifier
-            .size(SequenceNavIconButtonSize)
+            .size(buttonSize)
             .alpha(if (enabled) 1f else 0.4f)
             .background(theme.buttonSurface, RoundedCornerShape(6.dp))
             .border(1.dp, theme.buttonBorder, RoundedCornerShape(6.dp))
@@ -140,7 +163,7 @@ fun SequenceNavIconButton(
             imageVector = icon,
             contentDescription = contentDescription,
             tint = theme.iconTint,
-            modifier = Modifier.size(28.dp),
+            modifier = Modifier.size(iconSize),
         )
     }
 }
