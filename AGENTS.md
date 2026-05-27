@@ -1,14 +1,79 @@
-# MixedMeter Release + Version Bump Instructions
+# MixedMeter Agent Notes
 
-These instructions apply whenever the user asks to "bump the version" or requests release notes.
+Living scratch file for agent context. Review this at the start of relevant tasks and update it when the user states preferences, when project structure changes, or when useful architectural notes emerge.
 
-## Source of truth
+Do not treat this as user-facing documentation unless the user asks for that.
+
+## How the user likes to work
+
+- **Version bumps:** When asked to bump the version, compile release notes and update `app/build.gradle.kts` (see below).
+- **Commits:** Write clear commit messages (subject + short body explaining why). Only create commits when explicitly asked.
+- **Scope:** Prefer focused changes; match existing code style and conventions.
+- **This file:** Keep durable notes here about preferences, project layout, and code structure so future sessions stay consistent.
+
+## Project layout
+
+Standard single-module Android app.
+
+| Path | Purpose |
+|------|---------|
+| `app/build.gradle.kts` | App config, `versionCode`, `versionName` |
+| `app/src/main/AndroidManifest.xml` | Three activities: `MainActivity`, `SettingsActivity`, `SequenceActivity` |
+| `app/src/main/java/skelterjohn/mixedmeter/` | All app Kotlin source (flat package, file-per-concern) |
+| `app/src/main/java/skelterjohn/mixedmeter/ui/theme/` | Compose Material theme scaffolding (`Color`, `Type`, `Theme`) |
+| `app/src/main/res/` | Drawables, mipmaps, animations, strings, XML themes |
+| `design/` | Source assets (e.g. launcher SVG) |
+| `gradle/libs.versions.toml` | Version catalog for dependencies |
+
+Tech stack: Kotlin, Jetpack Compose, Material 3, DataStore preferences, Gradle Kotlin DSL.
+
+## Code structure
+
+All source lives in package `skelterjohn.mixedmeter`. Activities host Compose UI; logic is split into focused files rather than deep subpackages.
+
+**Screens (activities)**
+
+- `MainActivity.kt` — primary metronome UI: BPM dial, time signature, beat boxes, playback controls
+- `SequenceActivity.kt` — sequence editor and playback
+- `SettingsActivity.kt` — tone, theme, and app settings
+
+**UI building blocks**
+
+- `CircleDisplay.kt` — circular BPM / percent dial and related geometry helpers
+- `NavCornerButtons.kt` — bottom nav icons and sizing for small displays
+- `SequenceItemViews.kt`, `SequenceRepeatCountPicker.kt`, `SequenceSaveLoadDialogs.kt` — sequence UI pieces
+- `ActivityTransitions.kt` — slide transitions between activities
+
+**Themes**
+
+- `AppTheme.kt` — named app themes (light/dark/lava/etc.), `ProvideAppTheme`, `currentAppTheme()`
+- `ui/theme/` — base Compose `MixedMeterTheme` wiring
+
+**Metronome audio / timing**
+
+- `MetronomeTiming.kt` — beat schedules, beat-box timing, click-active state encode/decode
+- `MetronomePlayback.kt` — schedule helpers, BPM scaling, beat-box progress for UI
+- `MetronomeClickWav.kt` — WAV generation for click tones
+- `MetronomeLoopRenderer.kt` — renders click audio into loop buffers
+- `MetronomeLoopPlayer.kt` — plays prerendered metronome loops
+
+**Sequence data / playback**
+
+- `SequenceStore.kt` — DataStore persistence, flows for items/names/saved sequences
+- `SequenceMap.kt` — map UI for sequence items
+- `SequencePrerender.kt` — prerender sequence segments for loop playback
+
+## Release + version bump
+
+Applies when the user asks to "bump the version" or requests release notes.
+
+### Source of truth
 
 - Version values live in `app/build.gradle.kts`:
   - `versionCode`
   - `versionName` (semantic version: `MAJOR.MINOR.PATCH`)
 
-## Required workflow for each version bump request
+### Required workflow
 
 1. Locate the most recent **version bump commit** in git history.
    - Prefer commits whose message indicates a version update (for example: `push version`, `update version ...`).
@@ -26,13 +91,13 @@ These instructions apply whenever the user asks to "bump the version" or request
    - A concise release-note summary covering all commits since the last bump commit.
    - The old and new `versionName` and `versionCode`.
 
-## Release-note style
+### Release-note style
 
 - Keep notes concise and user-facing.
 - Group by impact when helpful (features, fixes, UI/UX, maintenance).
 - Reflect actual commit history only; do not invent changes.
 
-## Safety rules
+### Safety rules
 
 - Do not bump major without explicit user instruction.
 - Do not skip commit review scope (must be "since last version bump commit").
