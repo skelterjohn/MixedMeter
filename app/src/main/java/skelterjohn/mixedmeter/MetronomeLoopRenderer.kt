@@ -46,7 +46,7 @@ object MetronomeLoopRenderer {
             val periodNanos = schedule.beatPeriodNanos
             val beatCount = (cycleNanos / periodNanos).toInt()
             for (beat in 0 until beatCount) {
-                val click = if (beat == 0) leadClick else beatClick
+                val click = beatClick
                 val startFrame = nanosToFrames(beat * periodNanos)
                     .coerceIn(0, cycleFrameCount - 1)
                 mixAt(buffer, startFrame, click)
