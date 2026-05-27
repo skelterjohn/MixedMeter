@@ -26,13 +26,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.Save
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CheckboxDefaults
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -50,7 +43,6 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -535,8 +527,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
                 }
                 LazyColumn(
                     modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
+                        .fillMaxSize()
                         .clip(RectangleShape),
                     state = lazyListState,
                     contentPadding = PaddingValues(vertical = 8.dp),
@@ -591,26 +582,6 @@ private fun SequenceScreen(onBack: () -> Unit) {
                         }
                     }
                 }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Checkbox(
-                        checked = loopEnabled,
-                        onCheckedChange = { loopEnabled = it },
-                        colors = CheckboxDefaults.colors(
-                            checkedColor = theme.text,
-                            uncheckedColor = theme.text,
-                            checkmarkColor = Color.White,
-                        ),
-                    )
-                    Text(
-                        text = "loop",
-                        color = theme.text,
-                    )
-                }
             }
             if (showSequenceMap) {
                 SequenceItemMap(
@@ -638,53 +609,36 @@ private fun SequenceScreen(onBack: () -> Unit) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.Bottom,
         ) {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-                horizontalAlignment = Alignment.Start,
-            ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    SequenceNavIconButton(
-                        icon = Icons.Default.Save,
-                        contentDescription = "Save sequence",
-                        onClick = { showSaveDialog = true },
-                    )
-                    SequenceNavIconButton(
-                        icon = Icons.Default.FolderOpen,
-                        contentDescription = "Load sequence",
-                        enabled = hasSavedSequence,
-                        onClick = { showLoadDialog = true },
-                    )
-                    SequenceNavIconButton(
-                        icon = Icons.Default.Delete,
-                        contentDescription = "Clear sequence",
-                        enabled = sequenceItems.isNotEmpty(),
-                        onClick = {
-                            pausePlayback()
-                            activeItemIndex = 0
-                            activeRepeatIndex = null
-                            sequencePosition = 0f
-                            scope.launch {
-                                context.setSequenceItems(emptyList())
-                                sequenceName = ""
-                                context.setSequenceName("")
-                                workspaceBaseline = WorkspaceBaseline(
-                                    name = "",
-                                    itemsKey = sequenceItemsContentKey(emptyList()),
-                                )
-                                wasItemsDirty = false
-                            }
-                        },
-                    )
-                }
-                BottomNavIconButton(onClick = {
+            SequenceNavControls(
+                loopEnabled = loopEnabled,
+                onLoopChange = { loopEnabled = it },
+                hasSavedSequence = hasSavedSequence,
+                hasItems = sequenceItems.isNotEmpty(),
+                onSave = { showSaveDialog = true },
+                onLoad = { showLoadDialog = true },
+                onClear = {
+                    pausePlayback()
+                    activeItemIndex = 0
+                    activeRepeatIndex = null
+                    sequencePosition = 0f
+                    scope.launch {
+                        context.setSequenceItems(emptyList())
+                        sequenceName = ""
+                        context.setSequenceName("")
+                        workspaceBaseline = WorkspaceBaseline(
+                            name = "",
+                            itemsKey = sequenceItemsContentKey(emptyList()),
+                        )
+                        wasItemsDirty = false
+                    }
+                },
+                onBack = {
                     pausePlayback()
                     activeRepeatIndex = null
                     sequencePosition = 0f
                     onBack()
-                }) {
-                    ArrowDropDownNavIcon()
-                }
-            }
+                },
+            )
             Box(
                 modifier = Modifier
                     .wrapContentSize()

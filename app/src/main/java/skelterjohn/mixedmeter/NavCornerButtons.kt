@@ -3,26 +3,37 @@ package skelterjohn.mixedmeter
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -50,6 +61,61 @@ fun navigationBarBottomInset(): Dp {
 @Composable
 fun Modifier.navigationBarBottomPadding(): Modifier = composed {
     padding(bottom = navigationBarBottomInset())
+}
+
+@Composable
+fun SequenceNavControls(
+    loopEnabled: Boolean,
+    onLoopChange: (Boolean) -> Unit,
+    hasSavedSequence: Boolean,
+    hasItems: Boolean,
+    onSave: () -> Unit,
+    onLoad: () -> Unit,
+    onClear: () -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val theme = currentAppTheme()
+    Column(
+        modifier = modifier.height(CircleDisplaySize),
+        verticalArrangement = Arrangement.SpaceBetween,
+        horizontalAlignment = Alignment.Start,
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(
+                checked = loopEnabled,
+                onCheckedChange = onLoopChange,
+                colors = CheckboxDefaults.colors(
+                    checkedColor = theme.text,
+                    uncheckedColor = theme.text,
+                    checkmarkColor = Color.White,
+                ),
+            )
+            Text(text = "loop", color = theme.text)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            SequenceNavIconButton(
+                icon = Icons.Default.Save,
+                contentDescription = "Save sequence",
+                onClick = onSave,
+            )
+            SequenceNavIconButton(
+                icon = Icons.Default.FolderOpen,
+                contentDescription = "Load sequence",
+                enabled = hasSavedSequence,
+                onClick = onLoad,
+            )
+            SequenceNavIconButton(
+                icon = Icons.Default.Delete,
+                contentDescription = "Clear sequence",
+                enabled = hasItems,
+                onClick = onClear,
+            )
+        }
+        BottomNavIconButton(onClick = onBack) {
+            ArrowDropDownNavIcon()
+        }
+    }
 }
 
 @Composable
