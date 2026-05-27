@@ -95,8 +95,11 @@ fun bpmChangeForAngleDelta(angleDeltaDegrees: Float): Float {
     return angleDeltaDegrees / BpmDialSweepAngle * (BpmDialMaxBpm - BpmDialMinBpm)
 }
 
+fun resolvedBpm(bpm: Float): Float =
+    bpm.roundToInt().toFloat()
+
 fun resolvedSequencePercent(percent: Float): Float {
-    val clamped = percent.coerceIn(PercentDialMin, PercentDialMax)
+    val clamped = percent.roundToInt().toFloat().coerceIn(PercentDialMin, PercentDialMax)
     val low = PercentDialMid - PercentDialSnapToMidBuffer
     val high = PercentDialMid + PercentDialSnapToMidBuffer
     return if (clamped in low..high) PercentDialMid else clamped

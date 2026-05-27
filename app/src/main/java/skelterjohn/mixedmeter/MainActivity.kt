@@ -228,8 +228,8 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(Unit) {
                     val preferences = context.dataStore.data.first()
                     preferences[TEMPO_UNITS_KEY]?.let { savedUnits ->
-                        tempoUnits = savedUnits
                         val loadedBpm = calculateBpm(savedUnits)
+                        tempoUnits = savedUnits
                         committedBpm = loadedBpm
                     }
                     preferences[SELECTED_NOTE_KEY]?.let { savedNote ->
@@ -624,8 +624,10 @@ class MainActivity : ComponentActivity() {
                                             val delta = shortestAngleDelta(lastPointerAngle, angle)
                                             lastPointerAngle = angle
                                             totalAngularDrag += abs(delta)
-                                            gestureBpm = (gestureBpm + bpmChangeForAngleDelta(delta))
-                                                .coerceIn(BpmDialMinBpm, BpmDialMaxBpm)
+                                            gestureBpm = resolvedBpm(
+                                                (gestureBpm + bpmChangeForAngleDelta(delta))
+                                                    .coerceIn(BpmDialMinBpm, BpmDialMaxBpm),
+                                            )
                                             tempoUnits = bpmToTempoUnits(gestureBpm)
                                             return@detectDragGestures
                                         }
@@ -636,8 +638,10 @@ class MainActivity : ComponentActivity() {
                                         val delta = shortestAngleDelta(lastPointerAngle, angle)
                                         lastPointerAngle = angle
                                         totalAngularDrag += abs(delta)
-                                        gestureBpm = (gestureBpm + bpmChangeForAngleDelta(delta))
-                                            .coerceIn(BpmDialMinBpm, BpmDialMaxBpm)
+                                        gestureBpm = resolvedBpm(
+                                            (gestureBpm + bpmChangeForAngleDelta(delta))
+                                                .coerceIn(BpmDialMinBpm, BpmDialMaxBpm),
+                                        )
                                         tempoUnits = bpmToTempoUnits(gestureBpm)
                                     },
                                 )
