@@ -7,6 +7,7 @@ Do not treat this as user-facing documentation unless the user asks for that.
 ## How the user likes to work
 
 - **Version bumps:** When asked to bump the version, compile release notes and update `app/build.gradle.kts` (see below).
+- **Release notes format:** Write release notes in a Google Play Console-friendly plain-text format (short lines/bullets, minimal markup) so they can be pasted directly.
 - **Commits:** Write clear commit messages (subject + short body explaining why). Only create commits when explicitly asked.
 - **README maintenance:** Keep `README.md` accurate for GitHub visitors; update it whenever a new user-facing feature is added.
 - **Scope:** Prefer focused changes; match existing code style and conventions.
