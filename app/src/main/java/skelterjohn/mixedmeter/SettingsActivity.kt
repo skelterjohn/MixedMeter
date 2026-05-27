@@ -130,7 +130,16 @@ class SettingsActivity : ComponentActivity() {
                                     dataStore.edit { it[THEME_KEY] = value }
                                 }
                             },
-                            optionBackgroundColor = { appThemeForName(it).background },
+                            optionSwatchColors = {
+                                val optionTheme = appThemeForName(it)
+                                listOf(
+                                    optionTheme.background,
+                                    optionTheme.buttonSurface,
+                                    optionTheme.beatBoxInactive,
+                                    optionTheme.embossSurface,
+                                    optionTheme.dialogSurface,
+                                )
+                            },
                             modifier = Modifier.padding(top = 24.dp),
                         )
                     }
@@ -147,7 +156,7 @@ fun StringSettingDropdown(
     options: List<String>,
     selectedValue: String,
     onSelect: (String) -> Unit,
-    optionBackgroundColor: ((String) -> Color)? = null,
+    optionSwatchColors: ((String) -> List<Color>)? = null,
     modifier: Modifier = Modifier,
 ) {
     val theme = currentAppTheme()
@@ -182,15 +191,18 @@ fun StringSettingDropdown(
             options.forEach { option ->
                 DropdownMenuItem(
                     text = {
-                        val swatchColor = optionBackgroundColor?.invoke(option)
-                        if (swatchColor != null) {
+                        val swatchColors = optionSwatchColors?.invoke(option).orEmpty()
+                        if (swatchColors.isNotEmpty()) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(18.dp)
-                                        .background(swatchColor, RectangleShape)
-                                        .border(1.dp, Color.Black, RectangleShape),
-                                )
+                                swatchColors.forEach { swatchColor ->
+                                    Box(
+                                        modifier = Modifier
+                                            .size(18.dp)
+                                            .background(swatchColor, RectangleShape)
+                                            .border(1.dp, Color.Black, RectangleShape),
+                                    )
+                                    Spacer(Modifier.width(4.dp))
+                                }
                                 Spacer(Modifier.width(12.dp))
                                 Text(option, color = DropdownMenuTextColor)
                             }
