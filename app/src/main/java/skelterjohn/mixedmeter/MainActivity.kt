@@ -740,7 +740,18 @@ class MainActivity : ComponentActivity() {
                                         )
                                     }
                                 }
-                                if (timeSignatures.size < 4) {
+                                if (timeSignatures.isEmpty()) {
+                                    Box(
+                                        modifier = Modifier.padding(start = 4.dp, end = 32.dp),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        CreateTimeSignatureButton(
+                                            onClick = {
+                                                timeSignatures = listOf(TimeSignature(4, 4))
+                                            },
+                                        )
+                                    }
+                                } else if (timeSignatures.size < 4) {
                                     Box(
                                         modifier = Modifier
                                             .width(MeterTrailingAddSlotWidth)
@@ -1035,6 +1046,29 @@ private fun TimeSignatureSelectorCell(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun CreateTimeSignatureButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val theme = currentAppTheme()
+    Box(
+        modifier = modifier
+            .shadow(2.dp, RoundedCornerShape(5))
+            .background(theme.buttonSurface, RoundedCornerShape(5))
+            .border(1.dp, theme.buttonBorder, RoundedCornerShape(5))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = "create time signature",
+            color = theme.text,
+            fontSize = 14.sp,
+        )
     }
 }
 
