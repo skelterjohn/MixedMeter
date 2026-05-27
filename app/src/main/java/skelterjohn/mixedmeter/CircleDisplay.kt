@@ -51,12 +51,12 @@ const val BpmDialRangeTickStartScale = 0.9f
 
 const val BpmDialRangeTickEndScale = 1f
 
-const val PercentDialMin = 25f
-const val PercentDialMax = 200f
-const val PercentDialMid = 100f
+const val PercentDialMin = 25
+const val PercentDialMax = 200
+const val PercentDialMid = 100
 
 /** ± this many points around [PercentDialMid] resolve to exactly 100%. */
-const val PercentDialSnapToMidBuffer = 1f
+const val PercentDialSnapToMidBuffer = 1
 
 /** Compose degrees: straight up — [PercentDialMid] on the sequence percent dial. */
 const val PercentDialStraightUpAngle = 270f
@@ -95,36 +95,39 @@ fun bpmChangeForAngleDelta(angleDeltaDegrees: Float): Float {
     return angleDeltaDegrees / BpmDialSweepAngle * (BpmDialMaxBpm - BpmDialMinBpm)
 }
 
-fun resolvedBpm(bpm: Float): Float =
-    bpm.roundToInt().toFloat()
+fun resolvedBpm(bpm: Float): Int =
+    bpm.roundToInt()
 
-fun resolvedSequencePercent(percent: Float): Float {
-    val clamped = percent.roundToInt().toFloat().coerceIn(PercentDialMin, PercentDialMax)
+fun resolvedSequencePercent(percent: Int): Int {
+    val clamped = percent.coerceIn(PercentDialMin, PercentDialMax)
     val low = PercentDialMid - PercentDialSnapToMidBuffer
     val high = PercentDialMid + PercentDialSnapToMidBuffer
     return if (clamped in low..high) PercentDialMid else clamped
 }
 
-fun percentToDialAngle(percent: Float): Float {
+fun resolvedSequencePercent(percent: Float): Int =
+    resolvedSequencePercent(percent.roundToInt())
+
+fun percentToDialAngle(percent: Int): Float {
     val p = resolvedSequencePercent(percent)
     return if (p <= PercentDialMid) {
-        val ratio = (p - PercentDialMin) / (PercentDialMid - PercentDialMin)
+        val ratio = (p - PercentDialMin).toFloat() / (PercentDialMid - PercentDialMin).toFloat()
         BpmDialStartAngle + ratio * PercentDialLowSweep
     } else {
-        val ratio = (p - PercentDialMid) / (PercentDialMax - PercentDialMid)
+        val ratio = (p - PercentDialMid).toFloat() / (PercentDialMax - PercentDialMid).toFloat()
         var angle = PercentDialStraightUpAngle + ratio * PercentDialHighSweep
         if (angle >= 360f) angle -= 360f
         angle
     }
 }
 
-fun percentChangeForAngleDelta(angleDeltaDegrees: Float, currentPercent: Float): Float {
+fun percentChangeForAngleDelta(angleDeltaDegrees: Float, currentPercent: Int): Float {
     val degreesPerPercent = when {
         currentPercent < PercentDialMid ||
             (currentPercent == PercentDialMid && angleDeltaDegrees < 0f) ->
-            PercentDialLowSweep / (PercentDialMid - PercentDialMin)
+            PercentDialLowSweep / (PercentDialMid - PercentDialMin).toFloat()
         else ->
-            PercentDialHighSweep / (PercentDialMax - PercentDialMid)
+            PercentDialHighSweep / (PercentDialMax - PercentDialMid).toFloat()
     }
     return angleDeltaDegrees / degreesPerPercent
 }

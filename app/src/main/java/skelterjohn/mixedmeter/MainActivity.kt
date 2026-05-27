@@ -585,7 +585,7 @@ class MainActivity : ComponentActivity() {
                                 var lastDragPosition = Offset.Zero
                                 var lastPointerAngle = 0f
                                 var totalAngularDrag = 0f
-                                var gestureBpm = 0f
+                                var gestureBpm = 0
                                 fun isInCircle(position: Offset): Boolean {
                                     val dx = position.x - circleCenter.x
                                     val dy = position.y - circleCenter.y
@@ -598,7 +598,8 @@ class MainActivity : ComponentActivity() {
                                         dragStartedInCircle = isInCircle(startOffset)
                                         bpmAdjustActive = false
                                         totalAngularDrag = 0f
-                                        gestureBpm = calculateBpm(tempoUnits)
+                                        gestureBpm = resolvedBpm(calculateBpm(tempoUnits))
+                                            .coerceIn(BpmDialMinBpm.toInt(), BpmDialMaxBpm.toInt())
                                         lastPointerAngle = pointerAngleDegrees(circleCenter, startOffset)
                                     },
                                     onDragEnd = {
@@ -628,7 +629,8 @@ class MainActivity : ComponentActivity() {
                                                 (gestureBpm + bpmChangeForAngleDelta(delta))
                                                     .coerceIn(BpmDialMinBpm, BpmDialMaxBpm),
                                             )
-                                            tempoUnits = bpmToTempoUnits(gestureBpm)
+                                                .coerceIn(BpmDialMinBpm.toInt(), BpmDialMaxBpm.toInt())
+                                            tempoUnits = bpmToTempoUnits(gestureBpm.toFloat())
                                             return@detectDragGestures
                                         }
                                         if (!bpmAdjustActive) {
@@ -642,7 +644,8 @@ class MainActivity : ComponentActivity() {
                                             (gestureBpm + bpmChangeForAngleDelta(delta))
                                                 .coerceIn(BpmDialMinBpm, BpmDialMaxBpm),
                                         )
-                                        tempoUnits = bpmToTempoUnits(gestureBpm)
+                                            .coerceIn(BpmDialMinBpm.toInt(), BpmDialMaxBpm.toInt())
+                                        tempoUnits = bpmToTempoUnits(gestureBpm.toFloat())
                                     },
                                 )
                             },

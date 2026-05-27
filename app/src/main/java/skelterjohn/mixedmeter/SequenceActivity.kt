@@ -136,7 +136,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
     var activeItemIndex by remember { mutableIntStateOf(0) }
     var activeRepeatIndex by remember { mutableStateOf<Int?>(null) }
     var playbackGeneration by remember { mutableIntStateOf(0) }
-    var sequencePercent by remember { mutableFloatStateOf(PercentDialMid) }
+    var sequencePercent by remember { mutableIntStateOf(PercentDialMid) }
     var circleCenter by remember { mutableStateOf(Offset.Zero) }
     var circleDragCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
     var circleRadiusPx by remember(density) {
@@ -217,8 +217,8 @@ private fun SequenceScreen(onBack: () -> Unit) {
     val displayBpm by remember {
         derivedStateOf {
             activeSegment?.displayBpm
-                ?: sequenceItems.getOrNull(activeItemIndex)?.displayBpmAtPercent(sequencePercent)?.toFloat()
-                ?: sequenceItems.firstOrNull()?.displayBpmAtPercent(sequencePercent)?.toFloat()
+                ?: sequenceItems.getOrNull(activeItemIndex)?.displayBpmAtPercent(sequencePercent.toFloat())?.toFloat()
+                ?: sequenceItems.firstOrNull()?.displayBpmAtPercent(sequencePercent.toFloat())?.toFloat()
                 ?: 120f
         }
     }
@@ -290,7 +290,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
                     prerender = withContext(Dispatchers.Default) {
                         renderSequence(
                             items = sequenceItems,
-                            tempoPercent = sequencePercent,
+                            tempoPercent = sequencePercent.toFloat(),
                             beatTone = beatToneSetting,
                             leadTone = leadToneSetting,
                         )
@@ -324,7 +324,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
         sequencePrerender = withContext(Dispatchers.Default) {
             renderSequence(
                 items = sequenceItems,
-                tempoPercent = sequencePercent,
+                tempoPercent = sequencePercent.toFloat(),
                 beatTone = beatToneSetting,
                 leadTone = leadToneSetting,
             )
@@ -542,7 +542,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
                         ) { isDragging ->
                             SequenceItemRow(
                                 item = item,
-                                tempoPercent = sequencePercent,
+                                tempoPercent = sequencePercent.toFloat(),
                                 isDragging = isDragging,
                                 isActive = index == activeItemIndex,
                                 activeRepeatIndex = rowActiveRepeatIndex,
@@ -717,7 +717,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
                     onToggle = togglePlayback,
                     dialAngleDegrees = percentToDialAngle(sequencePercent),
                     showDialRangeTicks = true,
-                    bottomHalfLabel = "${sequencePercent.roundToInt()}%",
+                    bottomHalfLabel = "${sequencePercent}%",
                     modifier = Modifier.onGloballyPositioned { coords ->
                         circleRadiusPx = minOf(coords.size.width, coords.size.height) / 2f
                         circleDragCoordinates?.let { boxCoords ->
