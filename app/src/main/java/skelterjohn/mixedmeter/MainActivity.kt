@@ -78,9 +78,9 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.zIndex
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.input.pointer.pointerInput
@@ -830,7 +830,6 @@ class MainActivity : ComponentActivity() {
                                                     val boxColor = when {
                                                         isCurrentBeat -> theme.beatBoxPlaying
                                                         clickMode == BeatClickMode.INACTIVE -> theme.beatBoxInactive
-                                                        clickMode == BeatClickMode.LEAD -> theme.beatBoxLead
                                                         else -> theme.beatBoxActive
                                                     }
                                                     Box(
@@ -847,7 +846,13 @@ class MainActivity : ComponentActivity() {
                                                                     beatIndex,
                                                                 )
                                                             },
-                                                    )
+                                                        contentAlignment = Alignment.Center,
+                                                    ) {
+                                                        BeatClickModeIcon(
+                                                            mode = clickMode,
+                                                            tint = theme.text,
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }
@@ -968,9 +973,26 @@ class MainActivity : ComponentActivity() {
 
 private val MeterInsertSlotWidth = 24.dp
 private val MeterTimeSignatureSlotMinWidth = 56.dp
+private val MeterBeatBoxIconSize = 11.dp
 private val MeterRowStartSpacerWidth = 16.dp
 private val MeterRowEndSpacerWidth = 32.dp
 private val MeterTrailingAddSlotWidth = 60.dp
+
+@Composable
+private fun BeatClickModeIcon(
+    mode: BeatClickMode,
+    tint: Color,
+    modifier: Modifier = Modifier,
+) {
+    when (mode) {
+        BeatClickMode.INACTIVE, BeatClickMode.BEAT -> Unit
+        BeatClickMode.LEAD -> {
+            Canvas(modifier = modifier.size(MeterBeatBoxIconSize)) {
+                drawCircle(color = tint)
+            }
+        }
+    }
+}
 
 @Composable
 private fun RowScope.MeterRowStartSpacer() {
