@@ -583,9 +583,8 @@ class MainActivity : ComponentActivity() {
                                 var dragStartedInCircle = false
                                 var bpmAdjustActive = false
                                 var lastDragPosition = Offset.Zero
-                                var lastPointerAngle = 0f
                                 var totalAngularDrag = 0f
-                                var gestureBpm = 0
+                                var gestureBpm = 0f
                                 fun isInCircle(position: Offset): Boolean {
                                     val dx = position.x - circleCenter.x
                                     val dy = position.y - circleCenter.y
@@ -598,9 +597,8 @@ class MainActivity : ComponentActivity() {
                                         dragStartedInCircle = isInCircle(startOffset)
                                         bpmAdjustActive = false
                                         totalAngularDrag = 0f
-                                        gestureBpm = resolvedBpm(calculateBpm(tempoUnits))
-                                            .coerceIn(BpmDialMinBpm.toInt(), BpmDialMaxBpm.toInt())
-                                        lastPointerAngle = pointerAngleDegrees(circleCenter, startOffset)
+                                        gestureBpm = calculateBpm(tempoUnits)
+                                            .coerceIn(BpmDialMinBpm, BpmDialMaxBpm)
                                     },
                                     onDragEnd = {
                                         when {
@@ -616,36 +614,21 @@ class MainActivity : ComponentActivity() {
                                     },
                                     onDrag = { change, _ ->
                                         change.consume()
+                                        val dragDelta = change.position - lastDragPosition
                                         lastDragPosition = change.position
-                                        val inCircle = isInCircle(change.position)
-                                        if (dragStartedInCircle) {
-                                            if (!inCircle) return@detectDragGestures
-                                            bpmAdjustActive = true
-                                            val angle = pointerAngleDegrees(circleCenter, change.position)
-                                            val delta = shortestAngleDelta(lastPointerAngle, angle)
-                                            lastPointerAngle = angle
-                                            totalAngularDrag += abs(delta)
-                                            gestureBpm = resolvedBpm(
-                                                (gestureBpm + bpmChangeForAngleDelta(delta))
-                                                    .coerceIn(BpmDialMinBpm, BpmDialMaxBpm),
-                                            )
-                                                .coerceIn(BpmDialMinBpm.toInt(), BpmDialMaxBpm.toInt())
-                                            tempoUnits = bpmToTempoUnits(gestureBpm.toFloat())
-                                            return@detectDragGestures
-                                        }
-                                        if (!bpmAdjustActive) {
+                                        if (dragStartedInCircle || !bpmAdjustActive) {
                                             bpmAdjustActive = true
                                         }
-                                        val angle = pointerAngleDegrees(circleCenter, change.position)
-                                        val delta = shortestAngleDelta(lastPointerAngle, angle)
-                                        lastPointerAngle = angle
-                                        totalAngularDrag += abs(delta)
-                                        gestureBpm = resolvedBpm(
-                                            (gestureBpm + bpmChangeForAngleDelta(delta))
-                                                .coerceIn(BpmDialMinBpm, BpmDialMaxBpm),
+                                        val delta = angularDragDeltaDegrees(
+                                            circleCenter,
+                                            change.position,
+                                            dragDelta,
+                                            circleRadiusPx,
                                         )
-                                            .coerceIn(BpmDialMinBpm.toInt(), BpmDialMaxBpm.toInt())
-                                        tempoUnits = bpmToTempoUnits(gestureBpm.toFloat())
+                                        totalAngularDrag += abs(delta)
+                                        gestureBpm = (gestureBpm + bpmChangeForAngleDelta(delta))
+                                            .coerceIn(BpmDialMinBpm, BpmDialMaxBpm)
+                                        tempoUnits = bpmToTempoUnits(gestureBpm)
                                     },
                                 )
                             },

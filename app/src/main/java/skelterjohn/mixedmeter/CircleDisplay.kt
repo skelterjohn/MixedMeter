@@ -91,6 +91,26 @@ fun shortestAngleDelta(fromDegrees: Float, toDegrees: Float): Float {
     return delta
 }
 
+/**
+ * Rotation in degrees from [dragDelta] around [center], using the lever arm to [position].
+ * Tangential motion updates the dial; radial motion does not. [minRadiusPx] caps sensitivity
+ * near the center so small movements do not spike.
+ */
+fun angularDragDeltaDegrees(
+    center: Offset,
+    position: Offset,
+    dragDelta: Offset,
+    minRadiusPx: Float,
+): Float {
+    val rx = position.x - center.x
+    val ry = position.y - center.y
+    var r2 = rx * rx + ry * ry
+    val minR2 = minRadiusPx * minRadiusPx
+    if (r2 < minR2) r2 = minR2
+    val cross = rx * dragDelta.y - ry * dragDelta.x
+    return Math.toDegrees((cross / r2).toDouble()).toFloat()
+}
+
 fun bpmChangeForAngleDelta(angleDeltaDegrees: Float): Float {
     return angleDeltaDegrees / BpmDialSweepAngle * (BpmDialMaxBpm - BpmDialMinBpm)
 }

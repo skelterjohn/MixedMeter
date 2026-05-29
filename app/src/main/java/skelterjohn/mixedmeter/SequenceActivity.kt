@@ -653,9 +653,8 @@ private fun SequenceScreen(onBack: () -> Unit) {
                         var dragStartedInCircle = false
                         var percentAdjustActive = false
                         var lastDragPosition = Offset.Zero
-                        var lastPointerAngle = 0f
                         var totalAngularDrag = 0f
-                        var gesturePercent = PercentDialMid
+                        var gesturePercent = PercentDialMid.toFloat()
                         fun isInCircle(position: Offset): Boolean {
                             val dx = position.x - circleCenter.x
                             val dy = position.y - circleCenter.y
@@ -667,8 +666,8 @@ private fun SequenceScreen(onBack: () -> Unit) {
                                 dragStartedInCircle = isInCircle(startOffset)
                                 percentAdjustActive = false
                                 totalAngularDrag = 0f
-                                gesturePercent = resolvedSequencePercent(currentSequencePercent.value)
-                                lastPointerAngle = pointerAngleDegrees(circleCenter, startOffset)
+                                gesturePercent =
+                                    currentSequencePercent.value.toFloat()
                             },
                             onDragEnd = {
                                 if (
@@ -681,31 +680,24 @@ private fun SequenceScreen(onBack: () -> Unit) {
                             },
                             onDrag = { change, _ ->
                                 change.consume()
+                                val dragDelta = change.position - lastDragPosition
                                 lastDragPosition = change.position
-                                val angle = pointerAngleDegrees(circleCenter, change.position)
-                                val delta = shortestAngleDelta(lastPointerAngle, angle)
-                                lastPointerAngle = angle
-                                totalAngularDrag += abs(delta)
                                 if (isOn) return@detectDragGestures
-                                val inCircle = isInCircle(change.position)
-                                if (dragStartedInCircle) {
-                                    if (!inCircle) return@detectDragGestures
-                                    percentAdjustActive = true
-                                    gesturePercent = resolvedSequencePercent(
-                                        gesturePercent +
-                                            percentChangeForAngleDelta(delta, gesturePercent),
-                                    )
-                                    sequencePercent = gesturePercent
-                                    return@detectDragGestures
-                                }
-                                if (!percentAdjustActive) {
+                                if (dragStartedInCircle || !percentAdjustActive) {
                                     percentAdjustActive = true
                                 }
-                                gesturePercent = resolvedSequencePercent(
-                                    gesturePercent +
-                                        percentChangeForAngleDelta(delta, gesturePercent),
+                                val delta = angularDragDeltaDegrees(
+                                    circleCenter,
+                                    change.position,
+                                    dragDelta,
+                                    circleRadiusPx,
                                 )
-                                sequencePercent = gesturePercent
+                                totalAngularDrag += abs(delta)
+                                gesturePercent += percentChangeForAngleDelta(
+                                    delta,
+                                    resolvedSequencePercent(gesturePercent.roundToInt()),
+                                )
+                                sequencePercent = resolvedSequencePercent(gesturePercent)
                             },
                         )
                     },
