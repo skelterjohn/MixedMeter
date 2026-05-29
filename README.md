@@ -20,7 +20,8 @@ Use MixedMeter when you want to:
 - **Main metronome screen**
   - Set BPM with a circular dial
   - Choose time signature and note value
-  - Set each beat box to lead, beat, or inactive for custom accent patterns
+  - Set each beat box to lead, beat, or inactive for custom accent patterns (lead beats show a dot)
+  - Change beat accents or tones during playback without interrupting timing
   - Start/stop playback quickly from the main screen
 
 - **Sequence mode**
