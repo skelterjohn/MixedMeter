@@ -555,9 +555,6 @@ class MainActivity : ComponentActivity() {
                         playbackPosition = 0f
                         return@LaunchedEffect
                     }
-                    if (playbackAnchor == null) {
-                        playbackAnchor = PlaybackAnchor(0f, System.nanoTime())
-                    }
                     if (pendingLoopSwap != null) {
                         while (isActive && isOn && pendingLoopSwap != null) {
                             withFrameNanos { updatePlaybackPositionFromAnchor() }
@@ -572,11 +569,9 @@ class MainActivity : ComponentActivity() {
                     val player = loopPlayerHolder.value?.player
                     if (player == null || !isOn) return@LaunchedEffect
                     if (!player.isPlaying()) {
-                        val startPos = positionInCycleSeconds(
-                            playbackAnchor?.elapsedPositionSeconds() ?: 0f,
-                            loopPlayerHolder.value!!.schedule,
-                        )
-                        player.start(startPos)
+                        playbackAnchor = PlaybackAnchor(0f, System.nanoTime())
+                        playbackPosition = 0f
+                        player.start(0f)
                     }
                     while (isActive && isOn) {
                         if (pendingLoopSwap != null) {
@@ -604,7 +599,6 @@ class MainActivity : ComponentActivity() {
                             playbackPosition = 0f
                         } else {
                             committedBpm = bpm
-                            playbackAnchor = PlaybackAnchor(0f, System.nanoTime())
                             playbackPosition = 0f
                         }
                         isOn = !isOn

@@ -270,7 +270,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
         activeRepeatIndex = segment.repeatIndex
         playbackStartSeconds = segment.startTimeSeconds
         sequencePosition = segment.startTimeSeconds
-        playbackAnchor = PlaybackAnchor(segment.startTimeSeconds, System.nanoTime())
+        playbackAnchor = null
         if (isOn) {
             playbackGeneration++
         }
@@ -371,8 +371,6 @@ private fun SequenceScreen(onBack: () -> Unit) {
         }
 
         val prerender = sequencePrerender ?: return@LaunchedEffect
-        val startAt = (playbackAnchor?.elapsedPositionSeconds() ?: playbackStartSeconds)
-            .coerceIn(0f, prerender.durationSeconds)
         val loop = MetronomeLoopRenderer.MetronomeLoop(
             samples = prerender.samples,
             cycleFrameCount = prerender.totalFrameCount,
@@ -381,8 +379,11 @@ private fun SequenceScreen(onBack: () -> Unit) {
         val newPlayer = withContext(Dispatchers.Default) {
             MetronomeLoopPlayer.create(context, loop)
         }
+        val startAt = (playbackAnchor?.elapsedPositionSeconds() ?: playbackStartSeconds)
+            .coerceIn(0f, prerender.durationSeconds)
         val oldPlayer = playbackHolder.value?.player
         playbackHolder.value = SequencePlaybackSlot(newPlayer, prerender)
+        playbackAnchor = PlaybackAnchor(startAt, System.nanoTime())
         sequencePosition = startAt
         newPlayer.start(startAt)
         oldPlayer?.stop()
