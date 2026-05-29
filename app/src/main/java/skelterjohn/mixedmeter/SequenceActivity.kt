@@ -143,6 +143,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
         mutableFloatStateOf(with(density) { (CircleDisplaySize / 2).toPx() })
     }
     var playbackStartSeconds by remember { mutableFloatStateOf(0f) }
+    var playbackAnchor by remember { mutableStateOf<PlaybackAnchor?>(null) }
     var prerenderToken by remember { mutableIntStateOf(0) }
     var sequencePrerender by remember { mutableStateOf<SequencePrerender?>(null) }
     val playbackHolder = remember { mutableStateOf<SequencePlaybackSlot?>(null) }
@@ -235,6 +236,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
         playbackHolder.value?.player?.stop()
         playbackHolder.value?.player?.release()
         playbackHolder.value = null
+        playbackAnchor = null
         isOn = false
     }
 
@@ -268,6 +270,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
         activeRepeatIndex = segment.repeatIndex
         playbackStartSeconds = segment.startTimeSeconds
         sequencePosition = segment.startTimeSeconds
+        playbackAnchor = PlaybackAnchor(segment.startTimeSeconds, System.nanoTime())
         if (isOn) {
             playbackGeneration++
         }
@@ -308,7 +311,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
     val currentSequencePercent = rememberUpdatedState(sequencePercent)
     val currentTogglePlayback = rememberUpdatedState(togglePlayback)
 
-    LaunchedEffect(sequenceItems, beatToneSetting, leadToneSetting) {
+    LaunchedEffect(sequenceItems) {
         sequencePrerender = null
         prerenderToken++
         if (isOn) {
@@ -316,18 +319,28 @@ private fun SequenceScreen(onBack: () -> Unit) {
         }
     }
 
+    LaunchedEffect(beatToneSetting, leadToneSetting) {
+        sequencePrerender = null
+        prerenderToken++
+    }
+
     LaunchedEffect(prerenderToken, sequenceItems, beatToneSetting, leadToneSetting, sequencePercent) {
         if (sequenceItems.isEmpty()) {
             sequencePrerender = null
             return@LaunchedEffect
         }
-        sequencePrerender = withContext(Dispatchers.Default) {
+        val built = withContext(Dispatchers.Default) {
             renderSequence(
                 items = sequenceItems,
                 tempoPercent = sequencePercent.toFloat(),
                 beatTone = beatToneSetting,
                 leadTone = leadToneSetting,
             )
+        }
+        sequencePrerender = built
+        if (isOn && playbackAnchor != null) {
+            playbackStartSeconds = playbackAnchor!!.elapsedPositionSeconds()
+            playbackGeneration++
         }
     }
 
@@ -349,12 +362,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
         }
     }
 
-    LaunchedEffect(
-        isOn,
-        playbackGeneration,
-        beatToneSetting,
-        leadToneSetting,
-    ) {
+    LaunchedEffect(isOn, playbackGeneration) {
         if (!isOn) {
             playbackHolder.value?.player?.stop()
             playbackHolder.value?.player?.release()
@@ -363,7 +371,8 @@ private fun SequenceScreen(onBack: () -> Unit) {
         }
 
         val prerender = sequencePrerender ?: return@LaunchedEffect
-        val oldPlayer = playbackHolder.value?.player
+        val startAt = (playbackAnchor?.elapsedPositionSeconds() ?: playbackStartSeconds)
+            .coerceIn(0f, prerender.durationSeconds)
         val loop = MetronomeLoopRenderer.MetronomeLoop(
             samples = prerender.samples,
             cycleFrameCount = prerender.totalFrameCount,
@@ -372,11 +381,12 @@ private fun SequenceScreen(onBack: () -> Unit) {
         val newPlayer = withContext(Dispatchers.Default) {
             MetronomeLoopPlayer.create(context, loop)
         }
-        oldPlayer?.release()
+        val oldPlayer = playbackHolder.value?.player
         playbackHolder.value = SequencePlaybackSlot(newPlayer, prerender)
-        val startAt = playbackStartSeconds.coerceIn(0f, prerender.durationSeconds)
         sequencePosition = startAt
         newPlayer.start(startAt)
+        oldPlayer?.stop()
+        oldPlayer?.release()
     }
 
     LaunchedEffect(isOn, loopEnabled, playbackGeneration) {
@@ -395,7 +405,9 @@ private fun SequenceScreen(onBack: () -> Unit) {
                 val player = slot.player
                 val prerender = slot.prerender
 
-                val position = player.cyclePositionSeconds()
+                val position = playbackAnchor?.elapsedPositionSeconds()
+                    ?.coerceIn(0f, prerender.durationSeconds)
+                    ?: player.cyclePositionSeconds()
                 sequencePosition = position
 
                 segmentAt(position, prerender.segments)?.let { segment ->

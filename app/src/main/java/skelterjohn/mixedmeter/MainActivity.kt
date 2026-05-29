@@ -113,19 +113,13 @@ import androidx.lifecycle.LifecycleEventObserver
 import skelterjohn.mixedmeter.ui.theme.MixedMeterTheme
 import kotlin.math.abs
 
-/** Audio halted; UI finishes the current beat on [uiSchedule], then swaps to [newPlayer]. */
-private data class PendingBpmSwap(
+/** UI finishes the current beat on [uiSchedule], then swaps to [newPlayer]. */
+private data class PendingLoopSwap(
     val uiSchedule: MetronomeClickSchedule,
-    val startPositionSeconds: Float,
-    val startNano: Long,
+    val deferStartPositionSeconds: Float,
     val newPlayer: MetronomeLoopPlayer,
     val newSchedule: MetronomeClickSchedule,
-) {
-    fun currentPositionSeconds(): Float {
-        val elapsed = (System.nanoTime() - startNano) / 1_000_000_000f
-        return startPositionSeconds + elapsed
-    }
-}
+)
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 private val TEMPO_UNITS_KEY = floatPreferencesKey("tempo_units")
@@ -209,6 +203,7 @@ class MainActivity : ComponentActivity() {
                 var boxLayoutCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
                 var isOn by remember { mutableStateOf(false) }
                 var playbackPosition by remember { mutableFloatStateOf(0f) }
+                var playbackAnchor by remember { mutableStateOf<PlaybackAnchor?>(null) }
                 var isLoaded by remember { mutableStateOf(false) }
                 var preferencesHydrated by remember { mutableStateOf(false) }
 
@@ -303,12 +298,13 @@ class MainActivity : ComponentActivity() {
                 }
 
                 val loopPlayerHolder = remember { mutableStateOf<LoopPlayerSlot?>(null) }
-                var pendingBpmSwap by remember { mutableStateOf<PendingBpmSwap?>(null) }
+                var pendingLoopSwap by remember { mutableStateOf<PendingLoopSwap?>(null) }
 
                 fun stopMainPlayback() {
-                    pendingBpmSwap?.newPlayer?.release()
-                    pendingBpmSwap = null
+                    pendingLoopSwap?.newPlayer?.release()
+                    pendingLoopSwap = null
                     loopPlayerHolder.value?.player?.stop()
+                    playbackAnchor = null
                     playbackPosition = 0f
                     isOn = false
                 }
@@ -326,12 +322,18 @@ class MainActivity : ComponentActivity() {
 
                 val activeSchedule by remember {
                     derivedStateOf {
-                        pendingBpmSwap?.uiSchedule
+                        pendingLoopSwap?.uiSchedule
                             ?: if (isOn) {
                                 loopPlayerHolder.value?.schedule ?: metronomeClickSchedule
                             } else {
                                 metronomeClickSchedule
                             }
+                    }
+                }
+
+                fun updatePlaybackPositionFromAnchor() {
+                    playbackAnchor?.let { anchor ->
+                        playbackPosition = anchor.elapsedPositionSeconds()
                     }
                 }
 
@@ -367,6 +369,9 @@ class MainActivity : ComponentActivity() {
                 var previousSelectedNote by remember { mutableStateOf(selectedNote) }
                 var previousBeatTone by remember { mutableStateOf(beatToneSetting) }
                 var previousLeadTone by remember { mutableStateOf(leadToneSetting) }
+                var previousBeatClickModes by remember {
+                    mutableStateOf<List<List<BeatClickMode>>?>(null)
+                }
 
                 // Rebuild loop when meter/BPM/tone changes.
                 LaunchedEffect(
@@ -385,9 +390,10 @@ class MainActivity : ComponentActivity() {
                     previousTimeSignatures = timeSignatures.toList()
 
                     if (timeSignaturesChanged && isOn) {
-                        pendingBpmSwap?.newPlayer?.release()
-                        pendingBpmSwap = null
+                        pendingLoopSwap?.newPlayer?.release()
+                        pendingLoopSwap = null
                         loopPlayerHolder.value?.player?.stop()
+                        playbackAnchor = null
                         playbackPosition = 0f
                         isOn = false
                     }
@@ -396,39 +402,69 @@ class MainActivity : ComponentActivity() {
                     val noteChanged = previousSelectedNote != selectedNote
                     val beatToneChanged = previousBeatTone != beatToneSetting
                     val leadToneChanged = previousLeadTone != leadToneSetting
-                    val onlyBpmChange = isOn && !timeSignaturesChanged && bpmChanged &&
-                        !noteChanged && !beatToneChanged && !leadToneChanged
+                    val beatClickModesChanged = previousBeatClickModes != null &&
+                        previousBeatClickModes != beatClickModes
+                    val scheduleTimingChanged = timeSignaturesChanged || noteChanged || bpmChanged
+                    val onlyAudioChange = isOn && !scheduleTimingChanged &&
+                        (beatToneChanged || leadToneChanged || beatClickModesChanged)
+                    val canDeferLoopSwap = isOn && !timeSignaturesChanged && !noteChanged && bpmChanged
 
-                    if (pendingBpmSwap != null && !onlyBpmChange) {
-                        pendingBpmSwap?.newPlayer?.release()
-                        pendingBpmSwap = null
+                    if (pendingLoopSwap != null && !canDeferLoopSwap && !onlyAudioChange) {
+                        pendingLoopSwap?.newPlayer?.release()
+                        pendingLoopSwap = null
                     }
 
                     val schedule = metronomeClickSchedule
 
-                    if (onlyBpmChange) {
-                        val existingPending = pendingBpmSwap
+                    if (onlyAudioChange) {
+                        val newPlayer = withContext(Dispatchers.Default) {
+                            val loop = MetronomeLoopRenderer.render(
+                                schedule = schedule,
+                                beatTone = beatToneSetting,
+                                leadTone = leadToneSetting,
+                            )
+                            MetronomeLoopPlayer.create(context, loop)
+                        }
+                        val startPos = positionInCycleSeconds(
+                            playbackAnchor?.elapsedPositionSeconds() ?: playbackPosition,
+                            schedule,
+                        )
+                        pendingLoopSwap?.newPlayer?.release()
+                        pendingLoopSwap = null
+                        val oldPlayer = loopPlayerHolder.value?.player
+                        loopPlayerHolder.value = LoopPlayerSlot(newPlayer, schedule)
+                        newPlayer.start(startPos)
+                        oldPlayer?.stop()
+                        oldPlayer?.release()
+                        updatePlaybackPositionFromAnchor()
+                        previousCommittedBpm = committedBpm
+                        previousSelectedNote = selectedNote
+                        previousBeatTone = beatToneSetting
+                        previousLeadTone = leadToneSetting
+                        previousBeatClickModes = beatClickModes.map { it.toList() }
+                        return@LaunchedEffect
+                    }
+
+                    if (canDeferLoopSwap) {
+                        val existingPending = pendingLoopSwap
                         val existingSlot = loopPlayerHolder.value
                         val oldSchedule = existingPending?.uiSchedule ?: existingSlot?.schedule
                         val canDeferSwap = existingPending != null ||
                             (existingSlot?.player?.isPlaying() == true)
                         if (oldSchedule != null && canDeferSwap) {
-                            val startPositionSeconds: Float
-                            val startNano: Long
+                            val deferStart = playbackAnchor?.elapsedPositionSeconds()
+                                ?: existingPending?.deferStartPositionSeconds
+                                ?: existingSlot?.player?.cyclePositionSeconds()
+                                ?: 0f
                             if (existingPending != null) {
                                 existingPending.newPlayer.release()
-                                startPositionSeconds = existingPending.startPositionSeconds
-                                startNano = existingPending.startNano
-                                playbackPosition = existingPending.currentPositionSeconds()
                             } else {
                                 val slot = existingSlot!!
-                                startPositionSeconds = slot.player.cyclePositionSeconds()
                                 slot.player.stop()
                                 slot.player.release()
                                 loopPlayerHolder.value = null
-                                startNano = System.nanoTime()
-                                playbackPosition = startPositionSeconds
                             }
+                            updatePlaybackPositionFromAnchor()
                             val newPlayer = withContext(Dispatchers.Default) {
                                 val loop = MetronomeLoopRenderer.render(
                                     schedule = schedule,
@@ -437,10 +473,9 @@ class MainActivity : ComponentActivity() {
                                 )
                                 MetronomeLoopPlayer.create(context, loop)
                             }
-                            pendingBpmSwap = PendingBpmSwap(
+                            pendingLoopSwap = PendingLoopSwap(
                                 uiSchedule = oldSchedule,
-                                startPositionSeconds = startPositionSeconds,
-                                startNano = startNano,
+                                deferStartPositionSeconds = deferStart,
                                 newPlayer = newPlayer,
                                 newSchedule = schedule,
                             )
@@ -470,17 +505,18 @@ class MainActivity : ComponentActivity() {
                     previousSelectedNote = selectedNote
                     previousBeatTone = beatToneSetting
                     previousLeadTone = leadToneSetting
+                    previousBeatClickModes = beatClickModes.map { it.toList() }
                 }
 
-                LaunchedEffect(pendingBpmSwap) {
-                    val pending = pendingBpmSwap ?: return@LaunchedEffect
-                    while (isActive && isOn && pendingBpmSwap === pending) {
+                LaunchedEffect(pendingLoopSwap) {
+                    val pending = pendingLoopSwap ?: return@LaunchedEffect
+                    while (isActive && isOn && pendingLoopSwap === pending) {
                         withFrameNanos {
-                            playbackPosition = pending.currentPositionSeconds()
+                            updatePlaybackPositionFromAnchor()
                         }
                         val position = playbackPosition
                         if (hasCrossedBeatBoundary(
-                                pending.startPositionSeconds,
+                                pending.deferStartPositionSeconds,
                                 position,
                                 pending.uiSchedule,
                             )
@@ -491,37 +527,42 @@ class MainActivity : ComponentActivity() {
                             break
                         }
                     }
-                    if (pendingBpmSwap !== pending) return@LaunchedEffect
+                    if (pendingLoopSwap !== pending) return@LaunchedEffect
 
                     if (!isOn) {
                         pending.newPlayer.release()
-                        pendingBpmSwap = null
+                        pendingLoopSwap = null
                         return@LaunchedEffect
                     }
 
-                    pendingBpmSwap = null
+                    pendingLoopSwap = null
                     loopPlayerHolder.value = LoopPlayerSlot(pending.newPlayer, pending.newSchedule)
-                    playbackPosition = 0f
-                    pending.newPlayer.start()
+                    updatePlaybackPositionFromAnchor()
+                    pending.newPlayer.start(0f)
                     previousCommittedBpm = committedBpm
                     previousSelectedNote = selectedNote
                     previousBeatTone = beatToneSetting
                     previousLeadTone = leadToneSetting
+                    previousBeatClickModes = beatClickModes.map { it.toList() }
                 }
 
                 LaunchedEffect(isOn) {
                     if (!isOn) {
-                        pendingBpmSwap?.newPlayer?.release()
-                        pendingBpmSwap = null
+                        pendingLoopSwap?.newPlayer?.release()
+                        pendingLoopSwap = null
                         loopPlayerHolder.value?.player?.stop()
+                        playbackAnchor = null
                         playbackPosition = 0f
                         return@LaunchedEffect
                     }
-                    if (pendingBpmSwap != null) {
-                        while (isActive && isOn && pendingBpmSwap != null) {
-                            delay(16)
+                    if (playbackAnchor == null) {
+                        playbackAnchor = PlaybackAnchor(0f, System.nanoTime())
+                    }
+                    if (pendingLoopSwap != null) {
+                        while (isActive && isOn && pendingLoopSwap != null) {
+                            withFrameNanos { updatePlaybackPositionFromAnchor() }
                         }
-                        if (!isOn || pendingBpmSwap != null) return@LaunchedEffect
+                        if (!isOn || pendingLoopSwap != null) return@LaunchedEffect
                     }
                     var attempts = 0
                     while (loopPlayerHolder.value == null && isActive && attempts < 500) {
@@ -531,21 +572,18 @@ class MainActivity : ComponentActivity() {
                     val player = loopPlayerHolder.value?.player
                     if (player == null || !isOn) return@LaunchedEffect
                     if (!player.isPlaying()) {
-                        playbackPosition = 0f
-                        player.start()
+                        val startPos = positionInCycleSeconds(
+                            playbackAnchor?.elapsedPositionSeconds() ?: 0f,
+                            loopPlayerHolder.value!!.schedule,
+                        )
+                        player.start(startPos)
                     }
                     while (isActive && isOn) {
-                        if (pendingBpmSwap != null) {
-                            delay(16)
+                        if (pendingLoopSwap != null) {
+                            withFrameNanos { updatePlaybackPositionFromAnchor() }
                             continue
                         }
-                        withFrameNanos {
-                            loopPlayerHolder.value?.player?.let { activePlayer ->
-                                if (activePlayer.isPlaying()) {
-                                    playbackPosition = activePlayer.cyclePositionSeconds()
-                                }
-                            }
-                        }
+                        withFrameNanos { updatePlaybackPositionFromAnchor() }
                     }
                 }
 
@@ -559,12 +597,14 @@ class MainActivity : ComponentActivity() {
                     val toggleMetronome = {
                         focusManager.clearFocus()
                         if (isOn) {
-                            pendingBpmSwap?.newPlayer?.release()
-                            pendingBpmSwap = null
+                            pendingLoopSwap?.newPlayer?.release()
+                            pendingLoopSwap = null
                             loopPlayerHolder.value?.player?.stop()
+                            playbackAnchor = null
                             playbackPosition = 0f
                         } else {
                             committedBpm = bpm
+                            playbackAnchor = PlaybackAnchor(0f, System.nanoTime())
                             playbackPosition = 0f
                         }
                         isOn = !isOn

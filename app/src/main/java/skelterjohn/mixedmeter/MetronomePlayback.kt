@@ -52,6 +52,29 @@ fun SequenceItem.displayBpm(): Float = when (this) {
 fun SequenceItem.displayBpmAtPercent(tempoPercent: Float): Int =
     scaledSequenceBpm(displayBpm(), tempoPercent).roundToInt()
 
+/** Monotonic playback timeline; UI and loop swaps derive position from elapsed wall time. */
+data class PlaybackAnchor(
+    val positionSeconds: Float,
+    val nanoTime: Long,
+) {
+    fun elapsedPositionSeconds(nowNano: Long = System.nanoTime()): Float =
+        positionSeconds + (nowNano - nanoTime) / 1_000_000_000f
+}
+
+fun positionInCycleSeconds(positionSeconds: Float, schedule: MetronomeClickSchedule): Float {
+    val total = schedule.totalCycleNanos / 1_000_000_000f
+    if (total > 0f) {
+        val wrapped = positionSeconds % total
+        return if (wrapped < 0f) wrapped + total else wrapped
+    }
+    val period = schedule.beatPeriodNanos / 1_000_000_000f
+    if (period > 0f) {
+        val wrapped = positionSeconds % period
+        return if (wrapped < 0f) wrapped + period else wrapped
+    }
+    return positionSeconds
+}
+
 fun beatBoxProgress(
     isOn: Boolean,
     playbackPosition: Float,
