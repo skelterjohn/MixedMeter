@@ -11,3 +11,4 @@ local.properties
 app/release/app-release.aab
 .tools/bundletool.jar
 app/release/app-release.apks
+/.kotlin/errors

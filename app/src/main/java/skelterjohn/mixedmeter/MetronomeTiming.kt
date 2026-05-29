@@ -7,64 +7,107 @@ data class BeatBoxTiming(
     val duration: Float,
 )
 
+enum class BeatClickMode {
+    LEAD,
+    BEAT,
+    INACTIVE,
+}
+
 data class MetronomeClickSchedule(
     val boxes: List<BeatBoxTiming>,
     val clickOffsetsNanos: LongArray,
-    /** Parallel to [clickOffsetsNanos]; true → [leadTone] click (downbeat of each section). */
+    /** Parallel to [clickOffsetsNanos]; true → [leadTone] click. */
     val clickUseLeadTone: BooleanArray,
     val totalCycleNanos: Long,
     val beatPeriodNanos: Long,
 )
 
-/** Per-section beat click enabled; missing entries default to true. */
-fun reconcileBeatClickActive(
-    current: List<List<Boolean>>,
+fun defaultBeatClickMode(beatIndex: Int): BeatClickMode =
+    if (beatIndex == 0) BeatClickMode.LEAD else BeatClickMode.BEAT
+
+/** Per-section beat click mode; missing entries default to lead on beat 0, beat elsewhere. */
+fun reconcileBeatClickModes(
+    current: List<List<BeatClickMode>>,
     timeSignatures: List<TimeSignature>,
-): List<List<Boolean>> =
+): List<List<BeatClickMode>> =
     timeSignatures.mapIndexed { sectionIndex, ts ->
         val num = ts.numerator.coerceAtLeast(0)
         val section = current.getOrNull(sectionIndex)
-        List(num) { beatIndex -> section?.getOrNull(beatIndex) ?: true }
+        List(num) { beatIndex ->
+            section?.getOrNull(beatIndex) ?: defaultBeatClickMode(beatIndex)
+        }
     }
 
-fun isBeatClickActive(
-    beatClickActive: List<List<Boolean>>?,
+fun beatClickMode(
+    beatClickModes: List<List<BeatClickMode>>?,
     sectionIndex: Int,
     beatIndex: Int,
-): Boolean = beatClickActive?.getOrNull(sectionIndex)?.getOrNull(beatIndex) ?: true
+): BeatClickMode = beatClickModes?.getOrNull(sectionIndex)?.getOrNull(beatIndex)
+    ?: defaultBeatClickMode(beatIndex)
 
-fun toggleBeatClickActive(
-    beatClickActive: List<List<Boolean>>,
+fun cycleBeatClickMode(mode: BeatClickMode): BeatClickMode = when (mode) {
+    BeatClickMode.INACTIVE -> BeatClickMode.BEAT
+    BeatClickMode.BEAT -> BeatClickMode.LEAD
+    BeatClickMode.LEAD -> BeatClickMode.INACTIVE
+}
+
+fun toggleBeatClickMode(
+    beatClickModes: List<List<BeatClickMode>>,
     sectionIndex: Int,
     beatIndex: Int,
-): List<List<Boolean>> =
-    beatClickActive.mapIndexed { s, section ->
+): List<List<BeatClickMode>> =
+    beatClickModes.mapIndexed { s, section ->
         if (s != sectionIndex) {
             section
         } else {
-            section.mapIndexed { b, active ->
-                if (b != beatIndex) active else !active
+            section.mapIndexed { b, mode ->
+                if (b != beatIndex) mode else cycleBeatClickMode(mode)
             }
         }
     }
 
-fun encodeBeatClickActive(beatClickActive: List<List<Boolean>>): String =
-    beatClickActive.joinToString(";") { section ->
-        section.joinToString(",") { active -> if (active) "1" else "0" }
+fun encodeBeatClickModes(beatClickModes: List<List<BeatClickMode>>): String =
+    beatClickModes.joinToString(";") { section ->
+        section.joinToString(",") { mode ->
+            when (mode) {
+                BeatClickMode.INACTIVE -> "0"
+                BeatClickMode.BEAT -> "B"
+                BeatClickMode.LEAD -> "L"
+            }
+        }
     }
 
-fun decodeBeatClickActive(raw: String): List<List<Boolean>> {
+fun decodeBeatClickModes(raw: String): List<List<BeatClickMode>> {
     if (raw.isBlank()) return emptyList()
     return raw.split(";").map { section ->
-        section.split(",").map { token -> token == "1" }
+        section.split(",").mapIndexed { beatIndex, token ->
+            when (token.uppercase()) {
+                "0" -> BeatClickMode.INACTIVE
+                "L", "2" -> BeatClickMode.LEAD
+                "B" -> BeatClickMode.BEAT
+                "1" -> defaultBeatClickMode(beatIndex)
+                else -> defaultBeatClickMode(beatIndex)
+            }
+        }
     }
 }
+
+/** True when stored beat-click data differs from default lead/beat pattern. */
+fun beatClickModesNeedEncoding(
+    beatClickModes: List<List<BeatClickMode>>,
+    timeSignatures: List<TimeSignature>,
+): Boolean =
+    beatClickModes.zip(timeSignatures).any { (section, _) ->
+        section.withIndex().any { (beatIndex, mode) ->
+            mode != defaultBeatClickMode(beatIndex)
+        }
+    }
 
 fun buildMetronomeClickSchedule(
     bpm: Float,
     selectedNoteValue: Float,
     timeSignatures: List<TimeSignature>,
-    beatClickActive: List<List<Boolean>>? = null,
+    beatClickModes: List<List<BeatClickMode>>? = null,
 ): MetronomeClickSchedule {
     val boxes = mutableListOf<BeatBoxTiming>()
     val clickOffsetsNanos = mutableListOf<Long>()
@@ -76,9 +119,16 @@ fun buildMetronomeClickSchedule(
         val boxDurationNanos = boxDurationNanos(bpm, ts.denominator, selectedNoteValue)
         repeat(ts.numerator) { beatIndex ->
             val offsetNanos = sectionStartNanos + beatIndex * boxDurationNanos
-            if (isBeatClickActive(beatClickActive, sectionIndex, beatIndex)) {
-                clickOffsetsNanos.add(offsetNanos)
-                clickUseLeadTone.add(beatIndex == 0)
+            when (beatClickMode(beatClickModes, sectionIndex, beatIndex)) {
+                BeatClickMode.INACTIVE -> Unit
+                BeatClickMode.BEAT -> {
+                    clickOffsetsNanos.add(offsetNanos)
+                    clickUseLeadTone.add(false)
+                }
+                BeatClickMode.LEAD -> {
+                    clickOffsetsNanos.add(offsetNanos)
+                    clickUseLeadTone.add(true)
+                }
             }
             boxes.add(
                 BeatBoxTiming(

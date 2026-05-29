@@ -157,10 +157,10 @@ private fun parseStoredTimeSignatures(saved: String): List<TimeSignature> {
 /** If beat-click data has more beats than the parsed numerator, trust the beat count. */
 private fun timeSignaturesAlignedWithBeatClick(
     timeSignatures: List<TimeSignature>,
-    beatClickActive: List<List<Boolean>>,
+    beatClickModes: List<List<BeatClickMode>>,
 ): List<TimeSignature> =
     timeSignatures.mapIndexed { index, ts ->
-        val beatCount = beatClickActive.getOrNull(index)?.size ?: 0
+        val beatCount = beatClickModes.getOrNull(index)?.size ?: 0
         if (beatCount > ts.numerator) ts.copy(numerator = beatCount) else ts
     }
 
@@ -221,7 +221,7 @@ class MainActivity : ComponentActivity() {
                 var selectedNote by remember { mutableStateOf("♩") }
 
                 var timeSignatures by remember { mutableStateOf(listOf<TimeSignature>()) }
-                var beatClickActive by remember { mutableStateOf<List<List<Boolean>>>(emptyList()) }
+                var beatClickModes by remember { mutableStateOf<List<List<BeatClickMode>>>(emptyList()) }
 
                 var committedBpm by remember { mutableFloatStateOf(bpm) }
 
@@ -235,13 +235,13 @@ class MainActivity : ComponentActivity() {
                     preferences[SELECTED_NOTE_KEY]?.let { savedNote ->
                         selectedNote = savedNote
                     }
-                    val savedBeatClickActive = preferences[BEAT_CLICK_ACTIVE_KEY]?.let(::decodeBeatClickActive)
+                    val savedBeatClickModes = preferences[BEAT_CLICK_ACTIVE_KEY]?.let(::decodeBeatClickModes)
                         ?: emptyList()
                     preferences[TIME_SIGNATURES_KEY]?.let { saved ->
                         val parsed = parseStoredTimeSignatures(saved)
-                        timeSignatures = timeSignaturesAlignedWithBeatClick(parsed, savedBeatClickActive)
+                        timeSignatures = timeSignaturesAlignedWithBeatClick(parsed, savedBeatClickModes)
                     }
-                    beatClickActive = reconcileBeatClickActive(savedBeatClickActive, timeSignatures)
+                    beatClickModes = reconcileBeatClickModes(savedBeatClickModes, timeSignatures)
                     isLoaded = true
                     preferencesHydrated = true
                 }
@@ -264,16 +264,16 @@ class MainActivity : ComponentActivity() {
 
                 LaunchedEffect(timeSignatures) {
                     if (!preferencesHydrated) return@LaunchedEffect
-                    beatClickActive = reconcileBeatClickActive(beatClickActive, timeSignatures)
+                    beatClickModes = reconcileBeatClickModes(beatClickModes, timeSignatures)
                     context.dataStore.edit { settings ->
                         settings[TIME_SIGNATURES_KEY] = timeSignatures.joinToString("|") { "${it.numerator}/${it.denominator}" }
                     }
                 }
 
-                LaunchedEffect(beatClickActive) {
+                LaunchedEffect(beatClickModes) {
                     if (!preferencesHydrated || timeSignatures.isEmpty()) return@LaunchedEffect
                     context.dataStore.edit { settings ->
-                        settings[BEAT_CLICK_ACTIVE_KEY] = encodeBeatClickActive(beatClickActive)
+                        settings[BEAT_CLICK_ACTIVE_KEY] = encodeBeatClickModes(beatClickModes)
                     }
                 }
 
@@ -297,7 +297,7 @@ class MainActivity : ComponentActivity() {
                             bpm = committedBpm,
                             selectedNoteValue = selectedNoteValue,
                             timeSignatures = timeSignatures,
-                            beatClickActive = beatClickActive,
+                            beatClickModes = beatClickModes,
                         )
                     }
                 }
@@ -372,7 +372,7 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(
                     committedBpm,
                     timeSignatures,
-                    beatClickActive,
+                    beatClickModes,
                     selectedNote,
                     beatToneSetting,
                     leadToneSetting,
@@ -788,14 +788,15 @@ class MainActivity : ComponentActivity() {
                                                     val currentBeat = activeBeatBox
                                                     val isCurrentBeat = currentBeat?.sectionIndex == index &&
                                                         currentBeat?.beatIndex == beatIndex
-                                                    val clickActive = isBeatClickActive(
-                                                        beatClickActive,
+                                                    val clickMode = beatClickMode(
+                                                        beatClickModes,
                                                         index,
                                                         beatIndex,
                                                     )
                                                     val boxColor = when {
                                                         isCurrentBeat -> theme.beatBoxPlaying
-                                                        !clickActive -> theme.beatBoxInactive
+                                                        clickMode == BeatClickMode.INACTIVE -> theme.beatBoxInactive
+                                                        clickMode == BeatClickMode.LEAD -> theme.beatBoxLead
                                                         else -> theme.beatBoxActive
                                                     }
                                                     Box(
@@ -806,8 +807,8 @@ class MainActivity : ComponentActivity() {
                                                             .border(1.dp, theme.text)
                                                             .clickable {
                                                                 focusManager.clearFocus()
-                                                                beatClickActive = toggleBeatClickActive(
-                                                                    beatClickActive,
+                                                                beatClickModes = toggleBeatClickMode(
+                                                                    beatClickModes,
                                                                     index,
                                                                     beatIndex,
                                                                 )
@@ -904,7 +905,7 @@ class MainActivity : ComponentActivity() {
                                                     bpm = committedBpm,
                                                     selectedNote = selectedNote,
                                                     timeSignatures = timeSignatures,
-                                                    beatClickActive = beatClickActive,
+                                                    beatClickModes = beatClickModes,
                                                 ),
                                             )
                                             context.startSequenceActivity()

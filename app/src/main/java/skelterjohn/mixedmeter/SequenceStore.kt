@@ -39,7 +39,7 @@ sealed class SequenceItem {
         val bpm: Float,
         val selectedNote: String,
         val timeSignatures: List<TimeSignature>,
-        val beatClickActive: List<List<Boolean>> = emptyList(),
+        val beatClickModes: List<List<BeatClickMode>> = emptyList(),
         override val repeatCount: Int = 1,
     ) : SequenceItem()
 }
@@ -50,7 +50,7 @@ fun metronomeSnapshot(
     bpm: Float,
     selectedNote: String,
     timeSignatures: List<TimeSignature>,
-    beatClickActive: List<List<Boolean>> = emptyList(),
+    beatClickModes: List<List<BeatClickMode>> = emptyList(),
 ): SequenceItem {
     return if (timeSignatures.isEmpty()) {
         SequenceItem.PlainBpm(bpm = bpm, selectedNote = selectedNote)
@@ -59,7 +59,7 @@ fun metronomeSnapshot(
             bpm = bpm,
             selectedNote = selectedNote,
             timeSignatures = timeSignatures,
-            beatClickActive = reconcileBeatClickActive(beatClickActive, timeSignatures),
+            beatClickModes = reconcileBeatClickModes(beatClickModes, timeSignatures),
         )
     }
 }
@@ -248,8 +248,8 @@ private fun encodeSequenceItem(item: SequenceItem): String {
                 item.timeSignatures.joinToString(",") { "${it.numerator}/${it.denominator}" },
                 item.repeatCount.toString(),
             )
-            if (item.beatClickActive.any { section -> section.any { !it } }) {
-                fields.add(encodeBeatClickActive(item.beatClickActive))
+            if (beatClickModesNeedEncoding(item.beatClickModes, item.timeSignatures)) {
+                fields.add(encodeBeatClickModes(item.beatClickModes))
             }
             fields.joinToString("|")
         }
@@ -330,8 +330,8 @@ private fun decodeMeterPattern(parts: List<String>): SequenceItem.MeterPattern? 
         }
     if (timeSignatures.isEmpty()) return null
 
-    val beatClickActive = reconcileBeatClickActive(
-        if (parts.size >= 7) decodeBeatClickActive(parts[6]) else emptyList(),
+    val beatClickModes = reconcileBeatClickModes(
+        if (parts.size >= 7) decodeBeatClickModes(parts[6]) else emptyList(),
         timeSignatures,
     )
 
@@ -340,7 +340,7 @@ private fun decodeMeterPattern(parts: List<String>): SequenceItem.MeterPattern? 
         bpm = bpm,
         selectedNote = selectedNote,
         timeSignatures = timeSignatures,
-        beatClickActive = beatClickActive,
+        beatClickModes = beatClickModes,
         repeatCount = repeatCount,
     )
 }

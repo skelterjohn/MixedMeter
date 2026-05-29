@@ -39,7 +39,7 @@ fun SequenceItem.metronomeSchedule(tempoPercent: Float = 100f): MetronomeClickSc
             bpm = scaledSequenceBpm(bpm, tempoPercent),
             selectedNoteValue = noteValueForSymbol(selectedNote),
             timeSignatures = timeSignatures,
-            beatClickActive = reconcileBeatClickActive(beatClickActive, timeSignatures),
+            beatClickModes = reconcileBeatClickModes(beatClickModes, timeSignatures),
         )
     }
 }

@@ -20,7 +20,7 @@ Use MixedMeter when you want to:
 - **Main metronome screen**
   - Set BPM with a circular dial
   - Choose time signature and note value
-  - Enable/disable individual beat clicks for custom accent patterns
+  - Set each beat box to lead, beat, or inactive for custom accent patterns
   - Start/stop playback quickly from the main screen
 
 - **Sequence mode**
@@ -38,7 +38,7 @@ Use MixedMeter when you want to:
 
 1. Open the app to the main metronome.
 2. Set your BPM and time signature.
-3. Toggle beat boxes to define which beats click.
+3. Tap beat boxes to cycle through lead, beat, and inactive (new time signatures start with the first beat as lead).
 4. Press play and practice.
 5. Open Sequence mode to build multi-step practice routines.
 6. Save sequences you want to reuse.
