@@ -331,7 +331,18 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                fun updatePlaybackPositionFromAnchor() {
+                fun updatePlaybackPosition() {
+                    if (pendingLoopSwap != null) {
+                        playbackAnchor?.let { anchor ->
+                            playbackPosition = anchor.elapsedPositionSeconds()
+                        }
+                        return
+                    }
+                    val player = loopPlayerHolder.value?.player
+                    if (player != null && player.isPlaying()) {
+                        playbackPosition = player.cyclePositionSeconds()
+                        return
+                    }
                     playbackAnchor?.let { anchor ->
                         playbackPosition = anchor.elapsedPositionSeconds()
                     }
@@ -433,10 +444,11 @@ class MainActivity : ComponentActivity() {
                         pendingLoopSwap = null
                         val oldPlayer = loopPlayerHolder.value?.player
                         loopPlayerHolder.value = LoopPlayerSlot(newPlayer, schedule)
+                        playbackAnchor = PlaybackAnchor(startPos, System.nanoTime())
                         newPlayer.start(startPos)
                         oldPlayer?.stop()
                         oldPlayer?.release()
-                        updatePlaybackPositionFromAnchor()
+                        updatePlaybackPosition()
                         previousCommittedBpm = committedBpm
                         previousSelectedNote = selectedNote
                         previousBeatTone = beatToneSetting
@@ -452,10 +464,15 @@ class MainActivity : ComponentActivity() {
                         val canDeferSwap = existingPending != null ||
                             (existingSlot?.player?.isPlaying() == true)
                         if (oldSchedule != null && canDeferSwap) {
-                            val deferStart = playbackAnchor?.elapsedPositionSeconds()
-                                ?: existingPending?.deferStartPositionSeconds
-                                ?: existingSlot?.player?.cyclePositionSeconds()
-                                ?: 0f
+                            val deferStart = when {
+                                existingPending != null -> existingPending.deferStartPositionSeconds
+                                existingSlot?.player?.isPlaying() == true -> {
+                                    val pos = existingSlot.player.cyclePositionSeconds()
+                                    playbackAnchor = PlaybackAnchor(pos, System.nanoTime())
+                                    pos
+                                }
+                                else -> playbackAnchor?.elapsedPositionSeconds() ?: 0f
+                            }
                             if (existingPending != null) {
                                 existingPending.newPlayer.release()
                             } else {
@@ -464,7 +481,7 @@ class MainActivity : ComponentActivity() {
                                 slot.player.release()
                                 loopPlayerHolder.value = null
                             }
-                            updatePlaybackPositionFromAnchor()
+                            updatePlaybackPosition()
                             val newPlayer = withContext(Dispatchers.Default) {
                                 val loop = MetronomeLoopRenderer.render(
                                     schedule = schedule,
@@ -512,7 +529,7 @@ class MainActivity : ComponentActivity() {
                     val pending = pendingLoopSwap ?: return@LaunchedEffect
                     while (isActive && isOn && pendingLoopSwap === pending) {
                         withFrameNanos {
-                            updatePlaybackPositionFromAnchor()
+                            updatePlaybackPosition()
                         }
                         val position = playbackPosition
                         if (hasCrossedBeatBoundary(
@@ -537,8 +554,10 @@ class MainActivity : ComponentActivity() {
 
                     pendingLoopSwap = null
                     loopPlayerHolder.value = LoopPlayerSlot(pending.newPlayer, pending.newSchedule)
-                    updatePlaybackPositionFromAnchor()
+                    playbackAnchor = PlaybackAnchor(0f, System.nanoTime())
+                    playbackPosition = 0f
                     pending.newPlayer.start(0f)
+                    updatePlaybackPosition()
                     previousCommittedBpm = committedBpm
                     previousSelectedNote = selectedNote
                     previousBeatTone = beatToneSetting
@@ -557,7 +576,7 @@ class MainActivity : ComponentActivity() {
                     }
                     if (pendingLoopSwap != null) {
                         while (isActive && isOn && pendingLoopSwap != null) {
-                            withFrameNanos { updatePlaybackPositionFromAnchor() }
+                            withFrameNanos { updatePlaybackPosition() }
                         }
                         if (!isOn || pendingLoopSwap != null) return@LaunchedEffect
                     }
@@ -575,10 +594,10 @@ class MainActivity : ComponentActivity() {
                     }
                     while (isActive && isOn) {
                         if (pendingLoopSwap != null) {
-                            withFrameNanos { updatePlaybackPositionFromAnchor() }
+                            withFrameNanos { updatePlaybackPosition() }
                             continue
                         }
-                        withFrameNanos { updatePlaybackPositionFromAnchor() }
+                        withFrameNanos { updatePlaybackPosition() }
                     }
                 }
 
