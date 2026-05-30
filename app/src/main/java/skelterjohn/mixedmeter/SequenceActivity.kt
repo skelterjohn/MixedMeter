@@ -405,10 +405,14 @@ private fun SequenceScreen(onBack: () -> Unit) {
                 val slot = playbackHolder.value ?: return@withFrameNanos
                 val player = slot.player
                 val prerender = slot.prerender
+                val duration = prerender.durationSeconds
 
-                val position = playbackAnchor?.elapsedPositionSeconds()
-                    ?.coerceIn(0f, prerender.durationSeconds)
-                    ?: player.cyclePositionSeconds()
+                val position = if (player.isPlaying()) {
+                    player.cyclePositionSeconds().coerceIn(0f, duration)
+                } else {
+                    playbackAnchor?.elapsedPositionSeconds()?.coerceIn(0f, duration)
+                        ?: player.cyclePositionSeconds()
+                }
                 sequencePosition = position
 
                 segmentAt(position, prerender.segments)?.let { segment ->
@@ -416,8 +420,23 @@ private fun SequenceScreen(onBack: () -> Unit) {
                     activeRepeatIndex = segment.repeatIndex
                 }
 
-                if (!loopEnabled) {
-                    val duration = prerender.durationSeconds
+                if (loopEnabled) {
+                    val finished = !player.isPlaying() &&
+                        lastPosition >= duration - 0.05f &&
+                        position >= duration - 0.05f
+                    if (finished) {
+                        playbackHolder.value?.player?.release()
+                        playbackHolder.value = null
+                        playbackStartSeconds = 0f
+                        playbackAnchor = null
+                        sequencePosition = 0f
+                        activeItemIndex = 0
+                        activeRepeatIndex = null
+                        lastPosition = -1f
+                        playbackGeneration++
+                        return@withFrameNanos
+                    }
+                } else {
                     val wrappedToStart = lastPosition >= 0f &&
                         lastPosition >= duration - 0.05f &&
                         position < minOf(0.15f, duration * 0.05f)
