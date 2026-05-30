@@ -8,6 +8,9 @@
 .externalNativeBuild
 .cxx
 local.properties
+keystore.properties
+*.jks
+*.keystore
 app/release/app-release.aab
 .tools/bundletool.jar
 app/release/app-release.apks
