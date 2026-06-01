@@ -13,6 +13,8 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace = "skelterjohn.mixedmeter"
+    // Required for extractReleaseNativeSymbolTables (Play native crash symbolication).
+    ndkVersion = "27.0.12077973"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -23,8 +25,8 @@ android {
         applicationId = "skelterjohn.mixedmeter"
         minSdk = 24
         targetSdk = 36
-        versionCode = 13
-        versionName = "1.3.2"
+        versionCode = 14
+        versionName = "1.3.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -77,6 +79,22 @@ afterEvaluate {
             val mapping = layout.buildDirectory.file("outputs/mapping/release/mapping.txt").get().asFile
             if (mapping.exists()) {
                 mapping.copyTo(releaseBundleOutput.file("mapping.txt").asFile, overwrite = true)
+            }
+            val nativeSymbols = layout.buildDirectory
+                .file("outputs/native-debug-symbols/release/native-debug-symbols.zip")
+                .get()
+                .asFile
+            if (nativeSymbols.exists()) {
+                nativeSymbols.copyTo(
+                    releaseBundleOutput.file("native-debug-symbols.zip").asFile,
+                    overwrite = true,
+                )
+            } else {
+                logger.warn(
+                    "Native debug symbols were not generated. Install the NDK (Android Studio → " +
+                        "SDK Manager → SDK Tools → NDK (Side by side), version ${android.ndkVersion}) and rebuild. " +
+                        "Without it, Play Console will warn that native debug symbols are missing.",
+                )
             }
         }
     }

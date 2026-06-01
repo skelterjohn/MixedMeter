@@ -13,6 +13,7 @@ keystore.properties
 *.keystore
 app/release/app-release.aab
 app/release/mapping.txt
+app/release/native-debug-symbols.zip
 .tools/bundletool.jar
 app/release/app-release.apks
 /.kotlin/errors
