@@ -1256,7 +1256,7 @@ fun TimeSignatureSelector(
                         Box(contentAlignment = Alignment.Center) {
                             if (showPlaceholder) {
                                 Text(
-                                    text = "4",
+                                    text = numerator.coerceAtLeast(1).toString(),
                                     style = numeratorTextStyle.copy(
                                         color = theme.text.copy(alpha = 0.3f),
                                     ),
