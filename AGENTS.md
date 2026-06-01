@@ -9,11 +9,43 @@ Do not treat this as user-facing documentation unless the user asks for that.
 - **Version bumps:** When asked to bump the version, compile release notes and update `app/build.gradle.kts` (see below).
 - **Release notes format:** Write release notes in a Google Play Console-friendly plain-text format (short lines/bullets, minimal markup) so they can be pasted directly.
 - **Version bump commits:** When creating a version-bump commit, include release notes in the commit body.
-- **Commits:** Write clear commit messages (subject + short body explaining why). Only create commits when explicitly asked.
+- **Commits:** Write clear commit messages (subject + short body explaining why). Only create commits when explicitly asked. On this machine, follow **Git commits (Windows)** below — do not retry failed `git commit` patterns.
 - **README maintenance:** Keep `README.md` accurate for GitHub visitors; update it whenever a new user-facing feature is added.
 - **Scope:** Prefer focused changes; match existing code style and conventions.
 - **This file:** Keep durable notes here about preferences, project layout, and code structure so future sessions stay consistent.
 - **Signed releases:** Build from the CLI with Gradle, not Android Studio. Credentials live in gitignored `keystore.properties` (see `keystore.properties.example`). Play upload bundle: `./gradlew bundleRelease` → `app/release/app-release.aab`. Optional APK: `./gradlew assembleRelease` → `app/build/outputs/apk/release/app-release.apk`.
+
+### Git commits (Windows)
+
+This repo is on **Windows PowerShell** with **Git 2.30.1** (`C:\Program Files\Git\cmd\git.exe`). Shell and tooling quirks cause failed commits if you use the usual Linux/bash recipes.
+
+**Shell**
+
+- Chain commands with `;`, not `&&` (older PowerShell).
+- `Set-Location` to the repo root once per command block.
+
+**Commit command (use this every time)**
+
+1. `git status`, `git diff`, `git log` (parallel is fine) — review before committing.
+2. `git add` only the intended paths.
+3. Write the message to `.git/COMMIT_MSG_TMP` (subject line, blank line, body). Keep it under `.git/` so it is not staged.
+4. Commit with the **full git path** and **`-F`**, not `-m`:
+
+```powershell
+Set-Location "c:\Users\jasmu\AndroidStudioProjects\MixedMeter"
+& 'C:\Program Files\Git\cmd\git.exe' add <paths>
+& 'C:\Program Files\Git\cmd\git.exe' commit -F .git/COMMIT_MSG_TMP
+Remove-Item .git/COMMIT_MSG_TMP -ErrorAction SilentlyContinue
+& 'C:\Program Files\Git\cmd\git.exe' status
+```
+
+**Do not use (they failed here)**
+
+- `git commit -m "..."` / multiple `-m` — errors with `unknown option 'trailer'` (wrapper vs. Git 2.30).
+- Bash-style `git commit -m "$(cat <<'EOF' ... EOF)"` — not PowerShell.
+- Bare `git commit` without `C:\Program Files\Git\cmd\git.exe` if the trailer error appears.
+
+**Do not** run `git config`, `--no-verify`, or other workarounds unless the user asks.
 
 ## Project layout
 
