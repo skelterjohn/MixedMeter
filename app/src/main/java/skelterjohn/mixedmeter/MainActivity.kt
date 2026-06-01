@@ -158,6 +158,29 @@ private fun timeSignaturesAlignedWithBeatClick(
         if (beatCount > ts.numerator) ts.copy(numerator = beatCount) else ts
     }
 
+private fun List<TimeSignature>.withoutIndex(index: Int): List<TimeSignature> =
+    if (index !in indices) this else toMutableList().apply { removeAt(index) }
+
+private fun List<TimeSignature>.movedLeft(index: Int): List<TimeSignature> =
+    if (index <= 0 || index !in indices) {
+        this
+    } else {
+        toMutableList().apply {
+            val item = removeAt(index)
+            add(index - 1, item)
+        }
+    }
+
+private fun List<TimeSignature>.movedRight(index: Int): List<TimeSignature> =
+    if (index !in indices || index >= lastIndex) {
+        this
+    } else {
+        toMutableList().apply {
+            val item = removeAt(index)
+            add(index + 1, item)
+        }
+    }
+
 private fun calculateBpm(tempoUnits: Float): Float {
     val interval = (tempoUnits / 10f).toInt()
     val remainder = tempoUnits % 10f
@@ -709,9 +732,7 @@ class MainActivity : ComponentActivity() {
                                         contentAlignment = Alignment.Center,
                                     ) {
                                         IconButton(onClick = {
-                                            timeSignatures = timeSignatures.toMutableList().apply {
-                                                removeAt(index)
-                                            }
+                                            timeSignatures = timeSignatures.withoutIndex(index)
                                         }) {
                                             Icon(
                                                 imageVector = Icons.Default.Delete,
@@ -763,21 +784,13 @@ class MainActivity : ComponentActivity() {
                                                 }
                                             },
                                             onRemove = {
-                                                timeSignatures = timeSignatures.toMutableList().apply {
-                                                    removeAt(index)
-                                                }
+                                                timeSignatures = timeSignatures.withoutIndex(index)
                                             },
                                             onMoveLeft = {
-                                                timeSignatures = timeSignatures.toMutableList().apply {
-                                                    val item = removeAt(index)
-                                                    add(index - 1, item)
-                                                }
+                                                timeSignatures = timeSignatures.movedLeft(index)
                                             },
                                             onMoveRight = {
-                                                timeSignatures = timeSignatures.toMutableList().apply {
-                                                    val item = removeAt(index)
-                                                    add(index + 1, item)
-                                                }
+                                                timeSignatures = timeSignatures.movedRight(index)
                                             },
                                         )
                                     }
@@ -1060,6 +1073,13 @@ private fun TimeSignatureSelectorCell(
     onMoveRight: () -> Unit,
 ) {
     var showMenu by remember { mutableStateOf(false) }
+    var pendingRemove by remember { mutableStateOf(false) }
+    LaunchedEffect(pendingRemove) {
+        if (!pendingRemove) return@LaunchedEffect
+        pendingRemove = false
+        withFrameNanos { }
+        onRemove()
+    }
     Box(
         modifier = Modifier.width(MeterTimeSignatureSlotMinWidth),
         contentAlignment = Alignment.Center,
@@ -1083,8 +1103,8 @@ private fun TimeSignatureSelectorCell(
                     DropdownMenuItem(
                         text = { Text("Move Left", color = DropdownMenuTextColor) },
                         onClick = {
-                            onMoveLeft()
                             showMenu = false
+                            onMoveLeft()
                         },
                     )
                 }
@@ -1092,16 +1112,16 @@ private fun TimeSignatureSelectorCell(
                     DropdownMenuItem(
                         text = { Text("Move Right", color = DropdownMenuTextColor) },
                         onClick = {
-                            onMoveRight()
                             showMenu = false
+                            onMoveRight()
                         },
                     )
                 }
                 DropdownMenuItem(
                     text = { Text("Remove", color = DropdownMenuTextColor) },
                     onClick = {
-                        onRemove()
                         showMenu = false
+                        pendingRemove = true
                     },
                 )
             }
