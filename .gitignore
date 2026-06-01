@@ -12,6 +12,7 @@ keystore.properties
 *.jks
 *.keystore
 app/release/app-release.aab
+app/release/mapping.txt
 .tools/bundletool.jar
 app/release/app-release.apks
 /.kotlin/errors

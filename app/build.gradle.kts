@@ -23,8 +23,8 @@ android {
         applicationId = "skelterjohn.mixedmeter"
         minSdk = 24
         targetSdk = 36
-        versionCode = 12
-        versionName = "1.3.1"
+        versionCode = 13
+        versionName = "1.3.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -45,11 +45,16 @@ android {
             if (keystorePropertiesFile.exists()) {
                 signingConfig = signingConfigs.getByName("release")
             }
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            ndk {
+                // Packaged into the AAB for Play Console native crash symbolication.
+                debugSymbolLevel = "SYMBOL_TABLE"
+            }
         }
     }
     compileOptions {
@@ -66,9 +71,13 @@ val releaseBundleOutput = layout.projectDirectory.dir("release")
 afterEvaluate {
     tasks.named("bundleRelease").configure {
         doLast {
-            val bundle = layout.buildDirectory.file("outputs/bundle/release/app-release.aab").get().asFile
             releaseBundleOutput.asFile.mkdirs()
+            val bundle = layout.buildDirectory.file("outputs/bundle/release/app-release.aab").get().asFile
             bundle.copyTo(releaseBundleOutput.file("app-release.aab").asFile, overwrite = true)
+            val mapping = layout.buildDirectory.file("outputs/mapping/release/mapping.txt").get().asFile
+            if (mapping.exists()) {
+                mapping.copyTo(releaseBundleOutput.file("mapping.txt").asFile, overwrite = true)
+            }
         }
     }
 }

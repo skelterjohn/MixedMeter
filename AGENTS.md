@@ -13,7 +13,7 @@ Do not treat this as user-facing documentation unless the user asks for that.
 - **README maintenance:** Keep `README.md` accurate for GitHub visitors; update it whenever a new user-facing feature is added.
 - **Scope:** Prefer focused changes; match existing code style and conventions.
 - **This file:** Keep durable notes here about preferences, project layout, and code structure so future sessions stay consistent.
-- **Signed releases:** Build from the CLI with Gradle, not Android Studio. Credentials live in gitignored `keystore.properties` (see `keystore.properties.example`). Play upload bundle: `./gradlew bundleRelease` → `app/release/app-release.aab`. Optional APK: `./gradlew assembleRelease` → `app/build/outputs/apk/release/app-release.apk`.
+- **Signed releases:** Build from the CLI with Gradle, not Android Studio. Credentials live in gitignored `keystore.properties` (see `keystore.properties.example`). Play upload bundle: `./gradlew bundleRelease` → `app/release/app-release.aab` plus `app/release/mapping.txt` (upload mapping per release in Play Console if not picked up automatically). Release builds use R8 (`isMinifyEnabled`) and package native debug symbols in the AAB (`ndk.debugSymbolLevel = SYMBOL_TABLE`). Optional APK: `./gradlew assembleRelease` → `app/build/outputs/apk/release/app-release.apk`.
 
 ### Git commits (Windows)
 
