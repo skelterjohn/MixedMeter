@@ -35,7 +35,7 @@ Reference docs: [Quick Start Guide](https://f-droid.org/docs/Submitting_to_F-Dro
 
 F-Droid builds on their infrastructure **without** your upload keystore.
 
-- [ ] **Allow unsigned release builds** — today `assembleRelease` fails if `keystore.properties` is missing (`gradle.taskGraph.whenReady` check in `app/build.gradle.kts`). F-Droid must be able to run `./gradlew assembleRelease` with no signing config; they sign the APK themselves
+- [x] **Allow unsigned release builds** — `assembleRelease` works without `keystore.properties`; F-Droid signs the APK themselves
 - [ ] **Verify locally without keystore** — temporarily rename/remove `keystore.properties`, then:
   ```powershell
   .\gradlew.bat assembleRelease
@@ -150,6 +150,6 @@ CurrentVersionCode: 15
 # Must succeed WITHOUT keystore.properties present
 .\gradlew.bat assembleRelease
 
-# Your Play upload path (keystore required — not used by F-Droid)
+# Play upload path (keystore required — not used by F-Droid)
 .\gradlew.bat bundleRelease
 ```

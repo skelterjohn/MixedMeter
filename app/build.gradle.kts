@@ -123,13 +123,12 @@ dependencies {
 }
 
 gradle.taskGraph.whenReady {
-    val needsReleaseSigning = allTasks.any {
-        it.path == ":app:bundleRelease" || it.path == ":app:assembleRelease"
-    }
-    if (needsReleaseSigning) {
+    val needsPlaySigning = allTasks.any { it.path == ":app:bundleRelease" }
+    if (needsPlaySigning) {
         check(keystorePropertiesFile.exists()) {
-            "Release signing requires keystore.properties at the project root. " +
-                "Copy keystore.properties.example and fill in your upload key."
+            "Play upload builds require keystore.properties at the project root. " +
+                "Copy keystore.properties.example and fill in your upload key. " +
+                "For unsigned APKs (e.g. F-Droid local check), use assembleRelease instead."
         }
         val storeFile = rootProject.file(keystoreProperties["storeFile"] as String)
         check(storeFile.exists()) {
