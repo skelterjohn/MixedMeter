@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- Copyright 2026 John Asmuth. SPDX-License-Identifier: Apache-2.0 -->
 <!-- Source artwork for MixedMeter launcher icon (matches CircleDisplay idle meter). -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108">
   <circle cx="54" cy="54" r="21" fill="#808080"/>

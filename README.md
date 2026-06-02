@@ -50,3 +50,9 @@ Use MixedMeter when you want to:
 - Material 3 UI
 - DataStore-backed persistence for sequence/settings data
 
+## License
+
+Copyright 2026 John Asmuth
+
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for the full
+license text and [NOTICE](NOTICE) for artwork and third-party attribution.

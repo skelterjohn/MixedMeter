@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2026 John Asmuth. SPDX-License-Identifier: Apache-2.0 -->
 <translate xmlns:android="http://schemas.android.com/apk/res/android"
     android:duration="300"
     android:fromYDelta="0"

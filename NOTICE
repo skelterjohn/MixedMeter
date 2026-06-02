@@ -1,0 +1,55 @@
+MixedMeter
+Copyright 2026 John Asmuth
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this project except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the LICENSE file for the full license text.
+
+================================================================================
+Original work (Apache-2.0, copyright John Asmuth)
+================================================================================
+
+Source code:
+  app/src/main/java/skelterjohn/mixedmeter/
+  app/src/androidTest/java/skelterjohn/mixedmeter/
+  app/src/test/java/skelterjohn/mixedmeter/
+
+Artwork and Android resources:
+  design/ic_launcher_meter.svg
+  app/src/main/res/drawable/ic_launcher.png
+  app/src/main/res/drawable/ic_launcher_background.xml
+  app/src/main/res/drawable/ic_launcher_foreground.xml
+  app/src/main/res/mipmap-anydpi/ic_launcher.xml
+  app/src/main/res/mipmap-anydpi/ic_launcher_round.xml
+  app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
+  app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
+  app/src/main/res/anim/slide_in_down.xml
+  app/src/main/res/anim/slide_in_up.xml
+  app/src/main/res/anim/slide_out_down.xml
+  app/src/main/res/anim/slide_out_up.xml
+  app/src/main/res/values/colors.xml
+  app/src/main/res/values/strings.xml
+  app/src/main/res/values/themes.xml
+  app/src/main/res/xml/backup_rules.xml
+  app/src/main/res/xml/data_extraction_rules.xml
+
+================================================================================
+Third-party components
+================================================================================
+
+This app depends on open-source libraries distributed under their own
+licenses, including:
+
+  - AndroidX / Jetpack Compose / Material 3 (Apache-2.0)
+  - Compose Material Icons (Apache-2.0)
+  - AndroidX DataStore (Apache-2.0)
+  - sh.calvin.reorderable (Apache-2.0)
+
+See gradle/libs.versions.toml and resolved Gradle dependencies for versions.
