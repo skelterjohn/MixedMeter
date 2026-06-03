@@ -10,10 +10,13 @@ object MetronomeClickWav {
     /** Short metronome clicks do not need CD bandwidth; halves PCM size vs 44.1 kHz. */
     const val SAMPLE_RATE = 22_050
 
+    /** Peak level for synthesized clicks (fraction of [Short.MAX_VALUE]). */
+    private const val CLICK_PEAK = 0.92
+
     fun clickSamples(tone: String): ShortArray = generateClickSamples(tone)
 
     fun cacheFile(context: Context, tone: String): File {
-        val file = File(context.cacheDir, "metronome_${tone.lowercase()}.wav")
+        val file = File(context.cacheDir, "metronome_v2_${tone.lowercase()}.wav")
         if (!file.exists()) {
             writeMonoPcmWav(file, generateClickSamples(tone))
         }
@@ -31,7 +34,7 @@ object MetronomeClickWav {
     private fun generateToneSamples(frequencyHz: Double): ShortArray {
         val durationMs = 8
         val sampleCount = SAMPLE_RATE * durationMs / 1000
-        val amplitude = Short.MAX_VALUE * 0.45
+        val amplitude = Short.MAX_VALUE * CLICK_PEAK
         return ShortArray(sampleCount) { i ->
             val t = i.toDouble() / SAMPLE_RATE
             val envelope = 1.0 - (i.toDouble() / sampleCount)
@@ -43,7 +46,7 @@ object MetronomeClickWav {
     private fun generateThumpSamples(): ShortArray {
         val durationMs = 20
         val sampleCount = (SAMPLE_RATE * durationMs / 1000).coerceAtLeast(1)
-        val amplitude = Short.MAX_VALUE * 0.5
+        val amplitude = Short.MAX_VALUE * CLICK_PEAK
         val fundamentalHz = 80.0
         val subHz = 50.0
         return ShortArray(sampleCount) { i ->
@@ -58,7 +61,7 @@ object MetronomeClickWav {
     private fun generateSnapSamples(): ShortArray {
         val durationMs = 5
         val sampleCount = (SAMPLE_RATE * durationMs / 1000).coerceAtLeast(1)
-        val amplitude = Short.MAX_VALUE * 0.55
+        val amplitude = Short.MAX_VALUE * CLICK_PEAK
         return ShortArray(sampleCount) { i ->
             val t = i.toDouble() / sampleCount
             val envelope = (1.0 - t) * (1.0 - t) * (1.0 - t * 0.5)
