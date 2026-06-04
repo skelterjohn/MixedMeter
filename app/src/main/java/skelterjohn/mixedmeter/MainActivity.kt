@@ -161,6 +161,16 @@ private fun timeSignaturesAlignedWithBeatClick(
 private fun List<TimeSignature>.withoutIndex(index: Int): List<TimeSignature> =
     if (index !in indices) this else toMutableList().apply { removeAt(index) }
 
+private fun List<TimeSignature>.withNumeratorAt(index: Int, numerator: Int): List<TimeSignature> =
+    if (index !in indices) this else toMutableList().apply {
+        this[index] = this[index].copy(numerator = numerator)
+    }
+
+private fun List<TimeSignature>.withDenominatorAt(index: Int, denominator: Int): List<TimeSignature> =
+    if (index !in indices) this else toMutableList().apply {
+        this[index] = this[index].copy(denominator = denominator)
+    }
+
 private fun List<TimeSignature>.movedLeft(index: Int): List<TimeSignature> =
     if (index <= 0 || index !in indices) {
         this
@@ -240,6 +250,7 @@ class MainActivity : ComponentActivity() {
 
                 var timeSignatures by remember { mutableStateOf(listOf<TimeSignature>()) }
                 var beatClickModes by remember { mutableStateOf<List<List<BeatClickMode>>>(emptyList()) }
+                var pendingTimeSignatureRemovalIndex by remember { mutableStateOf<Int?>(null) }
 
                 var committedBpm by remember { mutableFloatStateOf(bpm) }
 
@@ -293,6 +304,13 @@ class MainActivity : ComponentActivity() {
                     context.dataStore.edit { settings ->
                         settings[BEAT_CLICK_ACTIVE_KEY] = encodeBeatClickModes(beatClickModes)
                     }
+                }
+
+                LaunchedEffect(pendingTimeSignatureRemovalIndex) {
+                    val index = pendingTimeSignatureRemovalIndex ?: return@LaunchedEffect
+                    withFrameNanos { }
+                    timeSignatures = timeSignatures.withoutIndex(index)
+                    pendingTimeSignatureRemovalIndex = null
                 }
 
                 val beatToneSetting by remember {
@@ -732,7 +750,8 @@ class MainActivity : ComponentActivity() {
                                         contentAlignment = Alignment.Center,
                                     ) {
                                         IconButton(onClick = {
-                                            timeSignatures = timeSignatures.withoutIndex(index)
+                                            focusManager.clearFocus()
+                                            pendingTimeSignatureRemovalIndex = index
                                         }) {
                                             Icon(
                                                 imageVector = Icons.Default.Delete,
@@ -774,17 +793,13 @@ class MainActivity : ComponentActivity() {
                                             timeSignature = ts,
                                             timeSignatureCount = timeSignatures.size,
                                             onNumeratorChange = { newNum ->
-                                                timeSignatures = timeSignatures.toMutableList().apply {
-                                                    this[index] = this[index].copy(numerator = newNum)
-                                                }
+                                                timeSignatures = timeSignatures.withNumeratorAt(index, newNum)
                                             },
                                             onDenominatorChange = { newDen ->
-                                                timeSignatures = timeSignatures.toMutableList().apply {
-                                                    this[index] = this[index].copy(denominator = newDen)
-                                                }
+                                                timeSignatures = timeSignatures.withDenominatorAt(index, newDen)
                                             },
                                             onRemove = {
-                                                timeSignatures = timeSignatures.withoutIndex(index)
+                                                pendingTimeSignatureRemovalIndex = index
                                             },
                                             onMoveLeft = {
                                                 timeSignatures = timeSignatures.movedLeft(index)
@@ -1074,11 +1089,13 @@ private fun TimeSignatureSelectorCell(
 ) {
     var showMenu by remember { mutableStateOf(false) }
     var pendingRemove by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
     LaunchedEffect(pendingRemove) {
         if (!pendingRemove) return@LaunchedEffect
-        pendingRemove = false
+        focusManager.clearFocus()
         withFrameNanos { }
         onRemove()
+        pendingRemove = false
     }
     Box(
         modifier = Modifier.width(MeterTimeSignatureSlotMinWidth),
@@ -1194,7 +1211,11 @@ fun TimeSignatureSelector(
     var isEditingNumerator by remember { mutableStateOf(false) }
     var numeratorEditText by remember { mutableStateOf("") }
     var numeratorHadFocus by remember { mutableStateOf(false) }
+    var canCommitNumeratorEdit by remember { mutableStateOf(true) }
     val numeratorFocusRequester = remember { FocusRequester() }
+    DisposableEffect(Unit) {
+        onDispose { canCommitNumeratorEdit = false }
+    }
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val denominatorOptions = listOf(1, 2, 4, 8, 16, 32)
@@ -1206,7 +1227,7 @@ fun TimeSignatureSelector(
     )
 
     fun commitNumeratorEdit() {
-        if (!isEditingNumerator) return
+        if (!isEditingNumerator || !canCommitNumeratorEdit) return
         val parsed = numeratorEditText.toIntOrNull()?.takeIf { it in 1..999 }
         onNumeratorChange(parsed ?: numerator.coerceAtLeast(1))
         isEditingNumerator = false
@@ -1268,7 +1289,7 @@ fun TimeSignatureSelector(
                         .onFocusChanged { focusState ->
                             if (focusState.isFocused) {
                                 numeratorHadFocus = true
-                            } else if (isEditingNumerator && numeratorHadFocus) {
+                            } else if (isEditingNumerator && numeratorHadFocus && canCommitNumeratorEdit) {
                                 commitNumeratorEdit()
                             }
                         },
