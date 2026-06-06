@@ -70,6 +70,10 @@ class SettingsActivity : ComponentActivity() {
                     dataStore.data
                         .map { preferences -> preferences[LEAD_TONE_KEY] ?: DEFAULT_TONE }
                 }.collectAsState(initial = DEFAULT_TONE)
+                val subdivisionToneSetting by remember {
+                    dataStore.data
+                        .map { preferences -> preferences[SUBDIVISION_TONE_KEY] ?: DEFAULT_TONE }
+                }.collectAsState(initial = DEFAULT_TONE)
 
                 Scaffold(
                     containerColor = theme.background,
@@ -117,6 +121,17 @@ class SettingsActivity : ComponentActivity() {
                             onSelect = { value ->
                                 scope.launch {
                                     dataStore.edit { it[TONE_KEY] = value }
+                                }
+                            },
+                            modifier = Modifier.padding(top = 24.dp),
+                        )
+                        StringSettingDropdown(
+                            label = "Subdivision tone",
+                            options = TONE_OPTIONS,
+                            selectedValue = subdivisionToneSetting,
+                            onSelect = { value ->
+                                scope.launch {
+                                    dataStore.edit { it[SUBDIVISION_TONE_KEY] = value }
                                 }
                             },
                             modifier = Modifier.padding(top = 24.dp),

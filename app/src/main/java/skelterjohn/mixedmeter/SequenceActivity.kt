@@ -137,6 +137,9 @@ private fun SequenceScreen(onBack: () -> Unit) {
     var activeRepeatIndex by remember { mutableStateOf<Int?>(null) }
     var playbackGeneration by remember { mutableIntStateOf(0) }
     var sequencePercent by remember { mutableIntStateOf(PercentDialMid) }
+    val subdivision by remember {
+        context.subdivisionFlow()
+    }.collectAsState(initial = null)
     var circleCenter by remember { mutableStateOf(Offset.Zero) }
     var circleDragCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
     var circleRadiusPx by remember(density) {
@@ -206,6 +209,10 @@ private fun SequenceScreen(onBack: () -> Unit) {
 
     val leadToneSetting by remember {
         context.dataStore.data.map { preferences -> preferences[LEAD_TONE_KEY] ?: DEFAULT_TONE }
+    }.collectAsState(initial = DEFAULT_TONE)
+
+    val subdivisionToneSetting by remember {
+        context.dataStore.data.map { preferences -> preferences[SUBDIVISION_TONE_KEY] ?: DEFAULT_TONE }
     }.collectAsState(initial = DEFAULT_TONE)
 
     val activeSegment by remember {
@@ -288,17 +295,15 @@ private fun SequenceScreen(onBack: () -> Unit) {
             pausePlayback()
         } else if (sequenceItems.isNotEmpty()) {
             scope.launch {
-                var prerender = sequencePrerender
-                if (prerender == null) {
-                    prerender = withContext(Dispatchers.Default) {
-                        renderSequence(
-                            items = sequenceItems,
-                            tempoPercent = sequencePercent.toFloat(),
-                            beatTone = beatToneSetting,
-                            leadTone = leadToneSetting,
-                        )
-                    }
-                    sequencePrerender = prerender
+                val prerender = withContext(Dispatchers.Default) {
+                    renderSequence(
+                        items = sequenceItems,
+                        tempoPercent = sequencePercent.toFloat(),
+                        beatTone = beatToneSetting,
+                        leadTone = leadToneSetting,
+                        subdivision = subdivision,
+                        subdivisionTone = subdivisionToneSetting,
+                    )
                 }
                 prerender?.let { built ->
                     sequencePrerender = built
@@ -319,12 +324,20 @@ private fun SequenceScreen(onBack: () -> Unit) {
         }
     }
 
-    LaunchedEffect(beatToneSetting, leadToneSetting) {
+    LaunchedEffect(beatToneSetting, leadToneSetting, subdivision, subdivisionToneSetting) {
         sequencePrerender = null
         prerenderToken++
     }
 
-    LaunchedEffect(prerenderToken, sequenceItems, beatToneSetting, leadToneSetting, sequencePercent) {
+    LaunchedEffect(
+        prerenderToken,
+        sequenceItems,
+        beatToneSetting,
+        leadToneSetting,
+        subdivision,
+        subdivisionToneSetting,
+        sequencePercent,
+    ) {
         if (sequenceItems.isEmpty()) {
             sequencePrerender = null
             return@LaunchedEffect
@@ -335,6 +348,8 @@ private fun SequenceScreen(onBack: () -> Unit) {
                 tempoPercent = sequencePercent.toFloat(),
                 beatTone = beatToneSetting,
                 leadTone = leadToneSetting,
+                subdivision = subdivision,
+                subdivisionTone = subdivisionToneSetting,
             )
         }
         sequencePrerender = built
@@ -741,7 +756,15 @@ private fun SequenceScreen(onBack: () -> Unit) {
                     onToggle = togglePlayback,
                     dialAngleDegrees = percentToDialAngle(sequencePercent),
                     showDialRangeTicks = true,
-                    bottomHalfLabel = "${sequencePercent}%",
+                    upperLeftLabel = "${sequencePercent}%",
+                    bottomHalfOverlay = {
+                        SubdivisionSelector(
+                            subdivision = subdivision,
+                            onSubdivisionChange = { value ->
+                                scope.launch { context.setSubdivision(value) }
+                            },
+                        )
+                    },
                     modifier = Modifier.onGloballyPositioned { coords ->
                         circleRadiusPx = minOf(coords.size.width, coords.size.height) / 2f
                         circleDragCoordinates?.let { boxCoords ->

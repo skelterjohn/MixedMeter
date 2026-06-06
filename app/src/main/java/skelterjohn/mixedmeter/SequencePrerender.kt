@@ -42,6 +42,8 @@ fun renderSequence(
     tempoPercent: Float,
     beatTone: String,
     leadTone: String,
+    subdivision: Int? = null,
+    subdivisionTone: String = beatTone,
 ): SequencePrerender? {
     if (items.isEmpty()) return null
 
@@ -55,6 +57,8 @@ fun renderSequence(
             schedule = schedule,
             beatTone = beatTone,
             leadTone = leadTone,
+            subdivision = subdivision,
+            subdivisionTone = subdivisionTone,
         )
         repeat(item.repeatCount) { repeatIndex ->
             segments.add(

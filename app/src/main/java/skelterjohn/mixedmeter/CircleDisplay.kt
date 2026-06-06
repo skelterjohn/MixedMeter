@@ -1,6 +1,7 @@
 package skelterjohn.mixedmeter
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -10,9 +11,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.draw.clip
@@ -22,6 +30,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -47,6 +56,9 @@ const val BpmDialMaxLabelAngle = 60f
 
 const val BpmDialLabelScale = 1.1f
 
+/** Slightly beyond [BpmDialLabelScale] — percent text is wider and sits upper-left. */
+const val PercentDialLabelScale = 1.28f
+
 const val BpmDialRangeTickStartScale = 0.9f
 
 const val BpmDialRangeTickEndScale = 1f
@@ -57,6 +69,9 @@ const val PercentDialMid = 100
 
 /** ± this many points around [PercentDialMid] resolve to exactly 100%. */
 const val PercentDialSnapToMidBuffer = 1
+
+const val SubdivisionMin = 2
+const val SubdivisionMax = 5
 
 /** Compose degrees: straight up — [PercentDialMid] on the sequence percent dial. */
 const val PercentDialStraightUpAngle = 270f
@@ -155,14 +170,29 @@ fun percentChangeForAngleDelta(angleDeltaDegrees: Float, currentPercent: Int): F
 /** Compose degrees: straight down — center of the bottom half label. */
 const val CircleBottomHalfLabelAngle = 90f
 
+/** Compose degrees: upper-left outside the dial — sequence percent label. */
+const val CircleUpperLeftLabelAngle = 225f
+
 /** Radial distance from circle center as a fraction of half the circle diameter. */
 const val CircleBottomHalfLabelRadialScale = 0.45f
 
 /** Label center in circle-local px: lower semicircle along [CircleBottomHalfLabelAngle]. */
-fun circleBottomHalfLabelOffsetPx(circleSizePx: Float): Offset {
+fun circleBottomHalfLabelOffsetPx(circleSizePx: Float): Offset =
+    circleOverlayLabelOffsetPx(circleSizePx, CircleBottomHalfLabelAngle)
+
+/** Label center in circle-local px: upper-left outside the dial arc. */
+fun circleUpperLeftLabelOffsetPx(circleSizePx: Float, lineEndGapPx: Float): Offset =
+    bpmDialRangeLabelOffsetPx(
+        circleSizePx,
+        CircleUpperLeftLabelAngle,
+        lineEndGapPx,
+        PercentDialLabelScale,
+    )
+
+private fun circleOverlayLabelOffsetPx(circleSizePx: Float, angleDegrees: Float): Offset {
     val centerPx = circleSizePx / 2f
     val labelRadiusPx = CircleBottomHalfLabelRadialScale * centerPx
-    val rad = Math.toRadians(CircleBottomHalfLabelAngle.toDouble())
+    val rad = Math.toRadians(angleDegrees.toDouble())
     return Offset(
         centerPx + labelRadiusPx * cos(rad).toFloat(),
         centerPx + labelRadiusPx * sin(rad).toFloat(),
@@ -174,10 +204,11 @@ fun bpmDialRangeLabelOffsetPx(
     circleSizePx: Float,
     angleDegrees: Float,
     lineEndGapPx: Float,
+    labelScale: Float = BpmDialLabelScale,
 ): Offset {
     val centerPx = circleSizePx / 2f
     val lineLengthPx = centerPx + lineEndGapPx
-    val labelRadiusPx = BpmDialLabelScale * lineLengthPx
+    val labelRadiusPx = labelScale * lineLengthPx
     val rad = Math.toRadians(angleDegrees.toDouble())
     return Offset(
         centerPx + labelRadiusPx * cos(rad).toFloat(),
@@ -214,6 +245,65 @@ private fun Modifier.centeredAt(positionPx: Offset): Modifier = layout { measura
 }
 
 @Composable
+fun SubdivisionSelector(
+    subdivision: Int?,
+    onSubdivisionChange: (Int?) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val theme = currentAppTheme()
+    val label = subdivision?.toString() ?: ""
+    Box(modifier = modifier) {
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .border(1.dp, theme.buttonBorder, RoundedCornerShape(4.dp))
+                .background(theme.buttonSurface, RoundedCornerShape(4.dp))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = { expanded = true },
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = label,
+                color = theme.text,
+                fontSize = 11.sp,
+                textAlign = TextAlign.Center,
+            )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            Text(
+                text = "Subdivisions",
+                color = DropdownMenuTextColor,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+            DropdownMenuItem(
+                text = { Text("Off", color = DropdownMenuTextColor) },
+                onClick = {
+                    onSubdivisionChange(null)
+                    expanded = false
+                },
+            )
+            for (value in SubdivisionMin..SubdivisionMax) {
+                DropdownMenuItem(
+                    text = { Text(value.toString(), color = DropdownMenuTextColor) },
+                    onClick = {
+                        onSubdivisionChange(value)
+                        expanded = false
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun CircleOverlayLabel(
     text: String,
     positionPx: Offset,
@@ -239,6 +329,8 @@ fun CircleDisplay(
     showBpmRangeLabels: Boolean = false,
     showDialRangeTicks: Boolean = false,
     bottomHalfLabel: String? = null,
+    upperLeftLabel: String? = null,
+    bottomHalfOverlay: (@Composable () -> Unit)? = null,
     dialAngleDegrees: Float? = null,
 ) {
     val currentAngle = dialAngleDegrees ?: bpmToDialAngle(bpm)
@@ -355,6 +447,17 @@ fun CircleDisplay(
                 text = label,
                 positionPx = circleBottomHalfLabelOffsetPx(circleSizePx),
             )
+        }
+        upperLeftLabel?.let { label ->
+            CircleOverlayLabel(
+                text = label,
+                positionPx = circleUpperLeftLabelOffsetPx(circleSizePx, lineEndGapPx),
+            )
+        }
+        bottomHalfOverlay?.let { overlay ->
+            Box(modifier = Modifier.centeredAt(circleBottomHalfLabelOffsetPx(circleSizePx))) {
+                overlay()
+            }
         }
         }
     }

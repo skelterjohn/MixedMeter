@@ -15,6 +15,8 @@ object MetronomeLoopRenderer {
         schedule: MetronomeClickSchedule,
         beatTone: String,
         leadTone: String,
+        subdivision: Int? = null,
+        subdivisionTone: String = beatTone,
     ): MetronomeLoop {
         val beatClick = MetronomeClickWav.clickSamples(beatTone)
         val leadClick = if (beatTone == leadTone) {
@@ -53,6 +55,15 @@ object MetronomeLoopRenderer {
             }
         }
 
+        mixSubdivisionClicks(
+            buffer = buffer,
+            cycleFrameCount = cycleFrameCount,
+            schedule = schedule,
+            cycleNanos = cycleNanos,
+            subdivision = subdivision,
+            subdivisionTone = subdivisionTone,
+        )
+
         seamLoopBoundary(buffer)
 
         return MetronomeLoop(
@@ -61,6 +72,65 @@ object MetronomeLoopRenderer {
             cycleDurationSeconds = cycleFrameCount.toFloat() / MetronomeClickWav.SAMPLE_RATE,
         )
     }
+
+    private fun mixSubdivisionClicks(
+        buffer: ShortArray,
+        cycleFrameCount: Int,
+        schedule: MetronomeClickSchedule,
+        cycleNanos: Long,
+        subdivision: Int?,
+        subdivisionTone: String,
+    ) {
+        if (subdivision == null || subdivision !in SubdivisionMin..SubdivisionMax) return
+
+        val subdivisionClick = MetronomeClickWav.clickSamples(subdivisionTone)
+
+        if (schedule.boxes.isNotEmpty()) {
+            for (box in schedule.boxes) {
+                val beatStartNanos = secondsToNanos(box.startTime)
+                val beatDurationNanos = secondsToNanos(box.duration).coerceAtLeast(1L)
+                mixSubdivisionsWithinBeat(
+                    buffer = buffer,
+                    cycleFrameCount = cycleFrameCount,
+                    beatStartNanos = beatStartNanos,
+                    beatDurationNanos = beatDurationNanos,
+                    subdivision = subdivision,
+                    subdivisionClick = subdivisionClick,
+                )
+            }
+        } else {
+            val periodNanos = schedule.beatPeriodNanos
+            val beatCount = (cycleNanos / periodNanos).toInt()
+            for (beat in 0 until beatCount) {
+                mixSubdivisionsWithinBeat(
+                    buffer = buffer,
+                    cycleFrameCount = cycleFrameCount,
+                    beatStartNanos = beat * periodNanos,
+                    beatDurationNanos = periodNanos,
+                    subdivision = subdivision,
+                    subdivisionClick = subdivisionClick,
+                )
+            }
+        }
+    }
+
+    private fun mixSubdivisionsWithinBeat(
+        buffer: ShortArray,
+        cycleFrameCount: Int,
+        beatStartNanos: Long,
+        beatDurationNanos: Long,
+        subdivision: Int,
+        subdivisionClick: ShortArray,
+    ) {
+        for (i in 1 until subdivision) {
+            val offsetNanos = beatStartNanos + (beatDurationNanos * i) / subdivision
+            val startFrame = nanosToFrames(offsetNanos).coerceIn(0, cycleFrameCount - 1)
+            mixAt(buffer, startFrame, subdivisionClick)
+        }
+    }
+
+    private fun secondsToNanos(seconds: Float): Long =
+        (seconds * 1_000_000_000.0).toLong()
 
     /** Fade the tail toward zero so a loop wrap back to sample 0 is not a click. */
     fun fadeTailForLoopWrap(buffer: ShortArray) {

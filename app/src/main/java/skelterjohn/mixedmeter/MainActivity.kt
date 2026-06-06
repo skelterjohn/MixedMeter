@@ -103,9 +103,11 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import androidx.lifecycle.Lifecycle
@@ -125,9 +127,27 @@ val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "se
 private val TEMPO_UNITS_KEY = floatPreferencesKey("tempo_units")
 val TONE_KEY = stringPreferencesKey("tone_setting")
 val LEAD_TONE_KEY = stringPreferencesKey("lead_tone_setting")
+val SUBDIVISION_TONE_KEY = stringPreferencesKey("subdivision_tone_setting")
+val SUBDIVISION_KEY = intPreferencesKey("subdivision")
 val TONE_OPTIONS = listOf("Bop", "Bip", "Snap", "Thump")
 
 const val DEFAULT_TONE = "Bop"
+
+fun decodeSubdivision(stored: Int?): Int? =
+    stored?.takeIf { it in SubdivisionMin..SubdivisionMax }
+
+fun Context.subdivisionFlow(): Flow<Int?> =
+    dataStore.data.map { preferences -> decodeSubdivision(preferences[SUBDIVISION_KEY]) }
+
+suspend fun Context.setSubdivision(subdivision: Int?) {
+    dataStore.edit { preferences ->
+        if (subdivision == null) {
+            preferences.remove(SUBDIVISION_KEY)
+        } else {
+            preferences[SUBDIVISION_KEY] = subdivision
+        }
+    }
+}
 private val SELECTED_NOTE_KEY = stringPreferencesKey("selected_note")
 private val TIME_SIGNATURES_KEY = stringPreferencesKey("time_signatures")
 private val BEAT_CLICK_ACTIVE_KEY = stringPreferencesKey("beat_click_active")
@@ -245,6 +265,9 @@ class MainActivity : ComponentActivity() {
                 }
 
                 var noteDropdownExpanded by remember { mutableStateOf(false) }
+                val subdivision by remember {
+                    context.subdivisionFlow()
+                }.collectAsState(initial = null)
                 val noteOptions = remember { listOf("♪", "♪.", "♩", "♩.", "𝅗𝅥", "𝅗𝅥.", "𝅝") }
                 var selectedNote by remember { mutableStateOf("♩") }
 
@@ -321,6 +344,11 @@ class MainActivity : ComponentActivity() {
                 val leadToneSetting by remember {
                     context.dataStore.data
                         .map { preferences -> preferences[LEAD_TONE_KEY] ?: DEFAULT_TONE }
+                }.collectAsState(initial = DEFAULT_TONE)
+
+                val subdivisionToneSetting by remember {
+                    context.dataStore.data
+                        .map { preferences -> preferences[SUBDIVISION_TONE_KEY] ?: DEFAULT_TONE }
                 }.collectAsState(initial = DEFAULT_TONE)
 
                 val selectedNoteValue by remember {
@@ -421,6 +449,8 @@ class MainActivity : ComponentActivity() {
                 var previousSelectedNote by remember { mutableStateOf(selectedNote) }
                 var previousBeatTone by remember { mutableStateOf(beatToneSetting) }
                 var previousLeadTone by remember { mutableStateOf(leadToneSetting) }
+                var previousSubdivision by remember { mutableStateOf(subdivision) }
+                var previousSubdivisionTone by remember { mutableStateOf(subdivisionToneSetting) }
                 var previousBeatClickModes by remember {
                     mutableStateOf<List<List<BeatClickMode>>?>(null)
                 }
@@ -433,6 +463,8 @@ class MainActivity : ComponentActivity() {
                     selectedNote,
                     beatToneSetting,
                     leadToneSetting,
+                    subdivision,
+                    subdivisionToneSetting,
                     isLoaded,
                 ) {
                     if (!isLoaded) return@LaunchedEffect
@@ -454,11 +486,14 @@ class MainActivity : ComponentActivity() {
                     val noteChanged = previousSelectedNote != selectedNote
                     val beatToneChanged = previousBeatTone != beatToneSetting
                     val leadToneChanged = previousLeadTone != leadToneSetting
+                    val subdivisionChanged = previousSubdivision != subdivision
+                    val subdivisionToneChanged = previousSubdivisionTone != subdivisionToneSetting
                     val beatClickModesChanged = previousBeatClickModes != null &&
                         previousBeatClickModes != beatClickModes
                     val scheduleTimingChanged = timeSignaturesChanged || noteChanged || bpmChanged
                     val onlyAudioChange = isOn && !scheduleTimingChanged &&
-                        (beatToneChanged || leadToneChanged || beatClickModesChanged)
+                        (beatToneChanged || leadToneChanged || beatClickModesChanged ||
+                            subdivisionChanged || subdivisionToneChanged)
                     val canDeferLoopSwap = isOn && !timeSignaturesChanged && !noteChanged && bpmChanged
 
                     if (pendingLoopSwap != null && !canDeferLoopSwap && !onlyAudioChange) {
@@ -474,6 +509,8 @@ class MainActivity : ComponentActivity() {
                                 schedule = schedule,
                                 beatTone = beatToneSetting,
                                 leadTone = leadToneSetting,
+                                subdivision = subdivision,
+                                subdivisionTone = subdivisionToneSetting,
                             )
                             MetronomeLoopPlayer.create(context, loop)
                         }
@@ -494,6 +531,8 @@ class MainActivity : ComponentActivity() {
                         previousSelectedNote = selectedNote
                         previousBeatTone = beatToneSetting
                         previousLeadTone = leadToneSetting
+                        previousSubdivision = subdivision
+                        previousSubdivisionTone = subdivisionToneSetting
                         previousBeatClickModes = beatClickModes.map { it.toList() }
                         return@LaunchedEffect
                     }
@@ -528,6 +567,8 @@ class MainActivity : ComponentActivity() {
                                     schedule = schedule,
                                     beatTone = beatToneSetting,
                                     leadTone = leadToneSetting,
+                                    subdivision = subdivision,
+                                    subdivisionTone = subdivisionToneSetting,
                                 )
                                 MetronomeLoopPlayer.create(context, loop)
                             }
@@ -548,6 +589,8 @@ class MainActivity : ComponentActivity() {
                             schedule = schedule,
                             beatTone = beatToneSetting,
                             leadTone = leadToneSetting,
+                            subdivision = subdivision,
+                            subdivisionTone = subdivisionToneSetting,
                         )
                         MetronomeLoopPlayer.create(context, loop)
                     }
@@ -563,6 +606,8 @@ class MainActivity : ComponentActivity() {
                     previousSelectedNote = selectedNote
                     previousBeatTone = beatToneSetting
                     previousLeadTone = leadToneSetting
+                    previousSubdivision = subdivision
+                    previousSubdivisionTone = subdivisionToneSetting
                     previousBeatClickModes = beatClickModes.map { it.toList() }
                 }
 
@@ -603,6 +648,8 @@ class MainActivity : ComponentActivity() {
                     previousSelectedNote = selectedNote
                     previousBeatTone = beatToneSetting
                     previousLeadTone = leadToneSetting
+                    previousSubdivision = subdivision
+                    previousSubdivisionTone = subdivisionToneSetting
                     previousBeatClickModes = beatClickModes.map { it.toList() }
                 }
 
@@ -621,18 +668,22 @@ class MainActivity : ComponentActivity() {
                         }
                         if (!isOn || pendingLoopSwap != null) return@LaunchedEffect
                     }
-                    var attempts = 0
-                    while (loopPlayerHolder.value == null && isActive && attempts < 500) {
-                        delay(10)
-                        attempts++
+                    val schedule = metronomeClickSchedule
+                    val player = withContext(Dispatchers.Default) {
+                        val loop = MetronomeLoopRenderer.render(
+                            schedule = schedule,
+                            beatTone = beatToneSetting,
+                            leadTone = leadToneSetting,
+                            subdivision = subdivision,
+                            subdivisionTone = subdivisionToneSetting,
+                        )
+                        MetronomeLoopPlayer.create(context, loop)
                     }
-                    val player = loopPlayerHolder.value?.player
-                    if (player == null || !isOn) return@LaunchedEffect
-                    if (!player.isPlaying()) {
-                        playbackAnchor = PlaybackAnchor(0f, System.nanoTime())
-                        playbackPosition = 0f
-                        player.start(0f)
-                    }
+                    loopPlayerHolder.value?.player?.release()
+                    loopPlayerHolder.value = LoopPlayerSlot(player, schedule)
+                    playbackAnchor = PlaybackAnchor(0f, System.nanoTime())
+                    playbackPosition = 0f
+                    player.start(0f)
                     while (isActive && isOn) {
                         if (pendingLoopSwap != null) {
                             withFrameNanos { updatePlaybackPosition() }
@@ -956,6 +1007,14 @@ class MainActivity : ComponentActivity() {
                                 beatProgress = activeBoxProgress,
                                 onToggle = toggleMetronome,
                                 showBpmRangeLabels = true,
+                                bottomHalfOverlay = {
+                                    SubdivisionSelector(
+                                        subdivision = subdivision,
+                                        onSubdivisionChange = { value ->
+                                            scope.launch { context.setSubdivision(value) }
+                                        },
+                                    )
+                                },
                                 modifier = Modifier.onGloballyPositioned { coords ->
                                     boxLayoutCoordinates?.let { boxCoords ->
                                         // Calculate center relative to the parent Box
