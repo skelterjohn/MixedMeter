@@ -66,6 +66,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -693,6 +694,7 @@ class MainActivity : ComponentActivity() {
                     val focusManager = LocalFocusManager.current
                     val circleRadiusPx = with(LocalDensity.current) { 100.dp.toPx() }
                     var twoFingerActive by remember { mutableStateOf(false) }
+                    var isDialDragging by remember { mutableStateOf(false) }
                     val currentTwoFingerActive = rememberUpdatedState(twoFingerActive)
                     val toggleMetronome = {
                         focusManager.clearFocus()
@@ -724,6 +726,7 @@ class MainActivity : ComponentActivity() {
                                 detectTapGestures(onTap = { focusManager.clearFocus() })
                             }
                             .pointerInput(circleCenter, circleRadiusPx, isOn, twoFingerActive) {
+                                coroutineScope {
                                 var dragStartedInCircle = false
                                 var bpmAdjustActive = false
                                 var dialDragCancelled = false
@@ -731,6 +734,13 @@ class MainActivity : ComponentActivity() {
                                 var lastDragPosition = Offset.Zero
                                 var totalAngularDrag = 0f
                                 var gestureBpm = 0f
+                                val dialPauseCommit = DialDragPauseCommit(this)
+                                fun commitDialBpm() {
+                                    val intBpm = storedSequenceBpm(gestureBpm)
+                                    tempoUnits = bpmToTempoUnits(intBpm)
+                                    committedBpm = intBpm
+                                    isDialDragging = false
+                                }
                                 fun isInCircle(position: Offset): Boolean {
                                     val dx = position.x - circleCenter.x
                                     val dy = position.y - circleCenter.y
@@ -739,6 +749,8 @@ class MainActivity : ComponentActivity() {
                                 detectDragGestures(
                                     onDragStart = { startOffset ->
                                         focusManager.clearFocus()
+                                        dialPauseCommit.reset()
+                                        isDialDragging = false
                                         tempoAtDragStart = tempoUnits
                                         dialDragCancelled = false
                                         lastDragPosition = startOffset
@@ -749,38 +761,38 @@ class MainActivity : ComponentActivity() {
                                             .coerceIn(BpmDialMinBpm, BpmDialMaxBpm)
                                     },
                                     onDragEnd = {
+                                        dialPauseCommit.onGestureEnd()
+                                        isDialDragging = false
                                         if (dialDragCancelled) return@detectDragGestures
                                         when {
                                             dragStartedInCircle && totalAngularDrag < 5f &&
                                                 isInCircle(lastDragPosition) -> toggleMetronome()
-                                            bpmAdjustActive -> {
-                                                val intBpm = storedSequenceBpm(gestureBpm)
-                                                tempoUnits = bpmToTempoUnits(intBpm)
-                                                committedBpm = intBpm
-                                            }
+                                            bpmAdjustActive -> commitDialBpm()
                                         }
                                     },
                                     onDragCancel = {
+                                        dialPauseCommit.onGestureEnd()
+                                        isDialDragging = false
                                         if (dialDragCancelled) return@detectDragGestures
-                                        if (bpmAdjustActive) {
-                                            val intBpm = storedSequenceBpm(gestureBpm)
-                                            tempoUnits = bpmToTempoUnits(intBpm)
-                                            committedBpm = intBpm
-                                        }
+                                        if (bpmAdjustActive) commitDialBpm()
                                     },
                                     onDrag = { change, _ ->
                                         if (currentTwoFingerActive.value) {
                                             if (!dialDragCancelled) {
+                                                dialPauseCommit.reset()
                                                 tempoUnits = tempoAtDragStart
                                                 dialDragCancelled = true
+                                                isDialDragging = false
                                             }
                                             return@detectDragGestures
                                         }
                                         change.consume()
                                         val dragDelta = change.position - lastDragPosition
                                         lastDragPosition = change.position
+                                        if (dialPauseCommit.frozen) return@detectDragGestures
                                         if (dragStartedInCircle || !bpmAdjustActive) {
                                             bpmAdjustActive = true
+                                            isDialDragging = true
                                         }
                                         val delta = angularDragDeltaDegrees(
                                             circleCenter,
@@ -789,11 +801,16 @@ class MainActivity : ComponentActivity() {
                                             circleRadiusPx,
                                         )
                                         totalAngularDrag += abs(delta)
+                                        val previousBpm = gestureBpm
                                         gestureBpm = (gestureBpm + bpmChangeForAngleDelta(delta))
                                             .coerceIn(BpmDialMinBpm, BpmDialMaxBpm)
                                         tempoUnits = bpmToTempoUnits(gestureBpm)
+                                        if (bpmAdjustActive && gestureBpm != previousBpm) {
+                                            dialPauseCommit.onValueChanged(::commitDialBpm)
+                                        }
                                     },
                                 )
+                                }
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -1024,6 +1041,7 @@ class MainActivity : ComponentActivity() {
                                 isOn = isOn,
                                 beatProgress = activeBoxProgress,
                                 onToggle = toggleMetronome,
+                                isDialDragging = isDialDragging,
                                 showBpmRangeLabels = true,
                                 bottomHalfOverlay = {
                                     SubdivisionSelector(

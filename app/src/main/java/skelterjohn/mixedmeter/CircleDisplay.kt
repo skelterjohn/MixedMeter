@@ -35,6 +35,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import skelterjohn.mixedmeter.ui.theme.MixedMeterTheme
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -83,6 +87,48 @@ private const val PercentDialHighSweep = 150f
 
 /** Matches [drawLine] end inset in [CircleDisplay] canvas (`y = -2.dp`). */
 private val BpmDialLineEndInset = 2.dp
+
+private val DialIdleFillColor = Color.Gray
+
+private val DialDraggingFillColor = Color(0xFF9A9A9A)
+
+const val DialDragPauseMillis = 500L
+
+/**
+ * After [onValueChanged], commits when the dial value is unchanged for [DialDragPauseMillis].
+ * While frozen, further value changes are ignored until [onGestureEnd].
+ */
+class DialDragPauseCommit(
+    private val scope: CoroutineScope,
+    private val pauseMillis: Long = DialDragPauseMillis,
+) {
+    var frozen: Boolean = false
+        private set
+
+    private var pauseJob: Job? = null
+
+    fun reset() {
+        frozen = false
+        pauseJob?.cancel()
+        pauseJob = null
+    }
+
+    fun onValueChanged(commit: () -> Unit) {
+        if (frozen) return
+        pauseJob?.cancel()
+        pauseJob = scope.launch {
+            delay(pauseMillis)
+            commit()
+            frozen = true
+        }
+    }
+
+    fun onGestureEnd() {
+        pauseJob?.cancel()
+        pauseJob = null
+        frozen = false
+    }
+}
 
 private val BpmDialRangeTickStroke = 3.dp
 
@@ -332,6 +378,7 @@ fun CircleDisplay(
     upperLeftLabel: String? = null,
     bottomHalfOverlay: (@Composable () -> Unit)? = null,
     dialAngleDegrees: Float? = null,
+    isDialDragging: Boolean = false,
 ) {
     val currentAngle = dialAngleDegrees ?: bpmToDialAngle(bpm)
     val density = LocalDensity.current
@@ -403,7 +450,7 @@ fun CircleDisplay(
                     )
                 } else {
                     drawCircle(
-                        color = Color.Gray,
+                        color = if (isDialDragging) DialDraggingFillColor else DialIdleFillColor,
                         radius = innerRadius,
                         center = center,
                     )

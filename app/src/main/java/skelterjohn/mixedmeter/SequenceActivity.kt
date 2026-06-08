@@ -48,6 +48,7 @@ import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.map
@@ -305,6 +306,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
     val currentSequencePercent = rememberUpdatedState(sequencePercent)
     val currentTogglePlayback = rememberUpdatedState(togglePlayback)
     var twoFingerActive by remember { mutableStateOf(false) }
+    var isDialDragging by remember { mutableStateOf(false) }
     val currentTwoFingerActive = rememberUpdatedState(twoFingerActive)
 
     LaunchedEffect(sequenceItems) {
@@ -698,6 +700,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
                     .wrapContentSize()
                     .onGloballyPositioned { circleDragCoordinates = it }
                     .pointerInput(circleCenter, circleRadiusPx, isOn, twoFingerActive) {
+                        coroutineScope {
                         var dragStartedInCircle = false
                         var percentAdjustActive = false
                         var dialDragCancelled = false
@@ -705,6 +708,11 @@ private fun SequenceScreen(onBack: () -> Unit) {
                         var lastDragPosition = Offset.Zero
                         var totalAngularDrag = 0f
                         var gesturePercent = PercentDialMid.toFloat()
+                        val dialPauseCommit = DialDragPauseCommit(this)
+                        fun commitDialPercent() {
+                            gesturePercent = sequencePercent.toFloat()
+                            isDialDragging = false
+                        }
                         fun isInCircle(position: Offset): Boolean {
                             val dx = position.x - circleCenter.x
                             val dy = position.y - circleCenter.y
@@ -712,6 +720,8 @@ private fun SequenceScreen(onBack: () -> Unit) {
                         }
                         detectDragGestures(
                             onDragStart = { startOffset ->
+                                dialPauseCommit.reset()
+                                isDialDragging = false
                                 percentAtDragStart = currentSequencePercent.value
                                 dialDragCancelled = false
                                 lastDragPosition = startOffset
@@ -722,6 +732,8 @@ private fun SequenceScreen(onBack: () -> Unit) {
                                     currentSequencePercent.value.toFloat()
                             },
                             onDragEnd = {
+                                dialPauseCommit.onGestureEnd()
+                                isDialDragging = false
                                 if (dialDragCancelled) return@detectDragGestures
                                 if (
                                     dragStartedInCircle &&
@@ -731,11 +743,17 @@ private fun SequenceScreen(onBack: () -> Unit) {
                                     currentTogglePlayback.value()
                                 }
                             },
+                            onDragCancel = {
+                                dialPauseCommit.onGestureEnd()
+                                isDialDragging = false
+                            },
                             onDrag = { change, _ ->
                                 if (currentTwoFingerActive.value) {
                                     if (!dialDragCancelled) {
+                                        dialPauseCommit.reset()
                                         sequencePercent = percentAtDragStart
                                         dialDragCancelled = true
+                                        isDialDragging = false
                                     }
                                     return@detectDragGestures
                                 }
@@ -743,8 +761,10 @@ private fun SequenceScreen(onBack: () -> Unit) {
                                 val dragDelta = change.position - lastDragPosition
                                 lastDragPosition = change.position
                                 if (isOn) return@detectDragGestures
+                                if (dialPauseCommit.frozen) return@detectDragGestures
                                 if (dragStartedInCircle || !percentAdjustActive) {
                                     percentAdjustActive = true
+                                    isDialDragging = true
                                 }
                                 val delta = angularDragDeltaDegrees(
                                     circleCenter,
@@ -753,13 +773,18 @@ private fun SequenceScreen(onBack: () -> Unit) {
                                     circleRadiusPx,
                                 )
                                 totalAngularDrag += abs(delta)
+                                val previousPercent = sequencePercent
                                 gesturePercent += percentChangeForAngleDelta(
                                     delta,
                                     resolvedSequencePercent(gesturePercent.roundToInt()),
                                 )
                                 sequencePercent = resolvedSequencePercent(gesturePercent)
+                                if (percentAdjustActive && sequencePercent != previousPercent) {
+                                    dialPauseCommit.onValueChanged(::commitDialPercent)
+                                }
                             },
                         )
+                        }
                     },
             ) {
                 CircleDisplay(
@@ -767,6 +792,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
                     isOn = isOn,
                     beatProgress = beatProgress,
                     onToggle = togglePlayback,
+                    isDialDragging = isDialDragging,
                     dialAngleDegrees = percentToDialAngle(sequencePercent),
                     showDialRangeTicks = true,
                     upperLeftLabel = "${sequencePercent}%",
