@@ -716,8 +716,9 @@ class MainActivity : ComponentActivity() {
                             .padding(innerPadding)
                             .navigationBarBottomPadding()
                             .onGloballyPositioned { boxLayoutCoordinates = it }
-                            .twoFingerVerticalSwipe(
+                            .twoFingerSwipe(
                                 onSwipeUp = { context.startSequenceActivity() },
+                                onSwipeLeft = { context.startSettingsActivity() },
                                 onTwoFingerActiveChanged = { twoFingerActive = it },
                             )
                             .pointerInput(Unit) {
@@ -1073,11 +1074,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                             BottomNavIconButton(
-                                onClick = {
-                                    context.startActivity(
-                                        Intent(context, SettingsActivity::class.java),
-                                    )
-                                },
+                                onClick = { context.startSettingsActivity() },
                             ) {
                                 SettingsNavIcon()
                             }

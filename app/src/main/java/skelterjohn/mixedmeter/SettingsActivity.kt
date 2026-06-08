@@ -2,6 +2,7 @@ package skelterjohn.mixedmeter
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
@@ -53,6 +54,14 @@ class SettingsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        onBackPressedDispatcher.addCallback(
+            this,
+            object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    finishWithSlideLeft()
+                }
+            },
+        )
         setContent {
             val themeSetting by remember {
                 dataStore.data
@@ -78,11 +87,16 @@ class SettingsActivity : ComponentActivity() {
                 Scaffold(
                     containerColor = theme.background,
                     contentWindowInsets = WindowInsets.statusBars,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .twoFingerSwipe(
+                            onSwipeRight = { finishWithSlideLeft() },
+                        ),
                     topBar = {
                         TopAppBar(
                             title = { Text("Settings", color = theme.text) },
                             navigationIcon = {
-                                IconButton(onClick = { finish() }) {
+                                IconButton(onClick = { finishWithSlideLeft() }) {
                                     Icon(
                                         Icons.AutoMirrored.Filled.ArrowBack,
                                         contentDescription = "Back",
@@ -95,7 +109,6 @@ class SettingsActivity : ComponentActivity() {
                             ),
                         )
                     },
-                    modifier = Modifier.fillMaxSize(),
                 ) { innerPadding ->
                     Column(
                         modifier = Modifier

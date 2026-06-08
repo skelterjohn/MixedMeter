@@ -537,7 +537,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
             .fillMaxSize()
             .background(theme.background)
             .navigationBarBottomPadding()
-            .twoFingerVerticalSwipe(
+            .twoFingerSwipe(
                 onSwipeDown = {
                     pausePlayback()
                     activeRepeatIndex = null
