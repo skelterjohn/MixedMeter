@@ -128,7 +128,9 @@ val SUBDIVISION_TONE_KEY = stringPreferencesKey("subdivision_tone_setting")
 val SUBDIVISION_KEY = intPreferencesKey("subdivision")
 val TONE_OPTIONS = listOf("Bop", "Bip", "Snap", "Thump")
 
-const val DEFAULT_TONE = "Bop"
+const val DEFAULT_BEAT_TONE = "Bop"
+const val DEFAULT_LEAD_TONE = "Bip"
+const val DEFAULT_SUBDIVISION_TONE = "Snap"
 
 fun decodeSubdivision(stored: Int?): Int? =
     stored?.takeIf { it in SubdivisionMin..SubdivisionMax }
@@ -335,18 +337,18 @@ class MainActivity : ComponentActivity() {
 
                 val beatToneSetting by remember {
                     context.dataStore.data
-                        .map { preferences -> preferences[TONE_KEY] ?: DEFAULT_TONE }
-                }.collectAsState(initial = DEFAULT_TONE)
+                        .map { preferences -> preferences[TONE_KEY] ?: DEFAULT_BEAT_TONE }
+                }.collectAsState(initial = DEFAULT_BEAT_TONE)
 
                 val leadToneSetting by remember {
                     context.dataStore.data
-                        .map { preferences -> preferences[LEAD_TONE_KEY] ?: DEFAULT_TONE }
-                }.collectAsState(initial = DEFAULT_TONE)
+                        .map { preferences -> preferences[LEAD_TONE_KEY] ?: DEFAULT_LEAD_TONE }
+                }.collectAsState(initial = DEFAULT_LEAD_TONE)
 
                 val subdivisionToneSetting by remember {
                     context.dataStore.data
-                        .map { preferences -> preferences[SUBDIVISION_TONE_KEY] ?: DEFAULT_TONE }
-                }.collectAsState(initial = DEFAULT_TONE)
+                        .map { preferences -> preferences[SUBDIVISION_TONE_KEY] ?: DEFAULT_SUBDIVISION_TONE }
+                }.collectAsState(initial = DEFAULT_SUBDIVISION_TONE)
 
                 val selectedNoteValue by remember {
                     derivedStateOf { noteValueForSymbol(selectedNote) }

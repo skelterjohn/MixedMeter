@@ -64,16 +64,16 @@ class SettingsActivity : ComponentActivity() {
                 val theme = currentAppTheme()
                 val beatToneSetting by remember {
                     dataStore.data
-                        .map { preferences -> preferences[TONE_KEY] ?: DEFAULT_TONE }
-                }.collectAsState(initial = DEFAULT_TONE)
+                        .map { preferences -> preferences[TONE_KEY] ?: DEFAULT_BEAT_TONE }
+                }.collectAsState(initial = DEFAULT_BEAT_TONE)
                 val leadToneSetting by remember {
                     dataStore.data
-                        .map { preferences -> preferences[LEAD_TONE_KEY] ?: DEFAULT_TONE }
-                }.collectAsState(initial = DEFAULT_TONE)
+                        .map { preferences -> preferences[LEAD_TONE_KEY] ?: DEFAULT_LEAD_TONE }
+                }.collectAsState(initial = DEFAULT_LEAD_TONE)
                 val subdivisionToneSetting by remember {
                     dataStore.data
-                        .map { preferences -> preferences[SUBDIVISION_TONE_KEY] ?: DEFAULT_TONE }
-                }.collectAsState(initial = DEFAULT_TONE)
+                        .map { preferences -> preferences[SUBDIVISION_TONE_KEY] ?: DEFAULT_SUBDIVISION_TONE }
+                }.collectAsState(initial = DEFAULT_SUBDIVISION_TONE)
 
                 Scaffold(
                     containerColor = theme.background,
