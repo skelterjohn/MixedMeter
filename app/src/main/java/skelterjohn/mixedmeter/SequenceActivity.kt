@@ -638,12 +638,11 @@ private fun SequenceScreen(onBack: () -> Unit) {
                     itemCount = sequenceItems.size,
                     activeIndex = activeItemIndex.coerceIn(sequenceItems.indices),
                     onItemScroll = { index ->
-                        scope.launch {
-                            lazyListState.scrollSequenceItemToCenter(
-                                index = index.coerceIn(sequenceItems.indices),
-                                fallbackItemHeightPx = fallbackItemHeightPx,
-                            )
+                        val coerced = index.coerceIn(sequenceItems.indices)
+                        if (coerced != activeItemIndex) {
+                            activeRepeatIndex = null
                         }
+                        activeItemIndex = coerced
                     },
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
