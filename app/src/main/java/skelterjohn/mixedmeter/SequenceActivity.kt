@@ -304,6 +304,8 @@ private fun SequenceScreen(onBack: () -> Unit) {
 
     val currentSequencePercent = rememberUpdatedState(sequencePercent)
     val currentTogglePlayback = rememberUpdatedState(togglePlayback)
+    var twoFingerActive by remember { mutableStateOf(false) }
+    val currentTwoFingerActive = rememberUpdatedState(twoFingerActive)
 
     LaunchedEffect(sequenceItems) {
         sequencePrerender = null
@@ -534,7 +536,16 @@ private fun SequenceScreen(onBack: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(theme.background)
-            .navigationBarBottomPadding(),
+            .navigationBarBottomPadding()
+            .twoFingerVerticalSwipe(
+                onSwipeDown = {
+                    pausePlayback()
+                    activeRepeatIndex = null
+                    sequencePosition = 0f
+                    onBack()
+                },
+                onTwoFingerActiveChanged = { twoFingerActive = it },
+            ),
     ) {
         SequenceNameField(
             name = sequenceName,
@@ -614,7 +625,9 @@ private fun SequenceScreen(onBack: () -> Unit) {
                                         context.updateSequenceItemRepeatCount(item.id, repeatCount)
                                     }
                                 },
-                                rowDragModifier = Modifier.draggableHandle(),
+                                rowDragModifier = Modifier.then(
+                                    if (twoFingerActive) Modifier else Modifier.draggableHandle(),
+                                ),
                             )
                         }
                     }
@@ -685,9 +698,11 @@ private fun SequenceScreen(onBack: () -> Unit) {
                 modifier = Modifier
                     .wrapContentSize()
                     .onGloballyPositioned { circleDragCoordinates = it }
-                    .pointerInput(circleCenter, circleRadiusPx, isOn) {
+                    .pointerInput(circleCenter, circleRadiusPx, isOn, twoFingerActive) {
                         var dragStartedInCircle = false
                         var percentAdjustActive = false
+                        var dialDragCancelled = false
+                        var percentAtDragStart = PercentDialMid
                         var lastDragPosition = Offset.Zero
                         var totalAngularDrag = 0f
                         var gesturePercent = PercentDialMid.toFloat()
@@ -698,6 +713,8 @@ private fun SequenceScreen(onBack: () -> Unit) {
                         }
                         detectDragGestures(
                             onDragStart = { startOffset ->
+                                percentAtDragStart = currentSequencePercent.value
+                                dialDragCancelled = false
                                 lastDragPosition = startOffset
                                 dragStartedInCircle = isInCircle(startOffset)
                                 percentAdjustActive = false
@@ -706,6 +723,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
                                     currentSequencePercent.value.toFloat()
                             },
                             onDragEnd = {
+                                if (dialDragCancelled) return@detectDragGestures
                                 if (
                                     dragStartedInCircle &&
                                     totalAngularDrag < 5f &&
@@ -715,6 +733,13 @@ private fun SequenceScreen(onBack: () -> Unit) {
                                 }
                             },
                             onDrag = { change, _ ->
+                                if (currentTwoFingerActive.value) {
+                                    if (!dialDragCancelled) {
+                                        sequencePercent = percentAtDragStart
+                                        dialDragCancelled = true
+                                    }
+                                    return@detectDragGestures
+                                }
                                 change.consume()
                                 val dragDelta = change.position - lastDragPosition
                                 lastDragPosition = change.position

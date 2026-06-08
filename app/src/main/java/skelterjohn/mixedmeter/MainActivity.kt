@@ -63,6 +63,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import kotlinx.coroutines.Dispatchers
@@ -692,6 +693,8 @@ class MainActivity : ComponentActivity() {
                 ) { innerPadding ->
                     val focusManager = LocalFocusManager.current
                     val circleRadiusPx = with(LocalDensity.current) { 100.dp.toPx() }
+                    var twoFingerActive by remember { mutableStateOf(false) }
+                    val currentTwoFingerActive = rememberUpdatedState(twoFingerActive)
                     val toggleMetronome = {
                         focusManager.clearFocus()
                         if (isOn) {
@@ -713,12 +716,18 @@ class MainActivity : ComponentActivity() {
                             .padding(innerPadding)
                             .navigationBarBottomPadding()
                             .onGloballyPositioned { boxLayoutCoordinates = it }
+                            .twoFingerVerticalSwipe(
+                                onSwipeUp = { context.startSequenceActivity() },
+                                onTwoFingerActiveChanged = { twoFingerActive = it },
+                            )
                             .pointerInput(Unit) {
                                 detectTapGestures(onTap = { focusManager.clearFocus() })
                             }
-                            .pointerInput(circleCenter, circleRadiusPx, isOn) {
+                            .pointerInput(circleCenter, circleRadiusPx, isOn, twoFingerActive) {
                                 var dragStartedInCircle = false
                                 var bpmAdjustActive = false
+                                var dialDragCancelled = false
+                                var tempoAtDragStart = 0f
                                 var lastDragPosition = Offset.Zero
                                 var totalAngularDrag = 0f
                                 var gestureBpm = 0f
@@ -730,6 +739,8 @@ class MainActivity : ComponentActivity() {
                                 detectDragGestures(
                                     onDragStart = { startOffset ->
                                         focusManager.clearFocus()
+                                        tempoAtDragStart = tempoUnits
+                                        dialDragCancelled = false
                                         lastDragPosition = startOffset
                                         dragStartedInCircle = isInCircle(startOffset)
                                         bpmAdjustActive = false
@@ -738,6 +749,7 @@ class MainActivity : ComponentActivity() {
                                             .coerceIn(BpmDialMinBpm, BpmDialMaxBpm)
                                     },
                                     onDragEnd = {
+                                        if (dialDragCancelled) return@detectDragGestures
                                         when {
                                             dragStartedInCircle && totalAngularDrag < 5f &&
                                                 isInCircle(lastDragPosition) -> toggleMetronome()
@@ -745,11 +757,19 @@ class MainActivity : ComponentActivity() {
                                         }
                                     },
                                     onDragCancel = {
+                                        if (dialDragCancelled) return@detectDragGestures
                                         if (bpmAdjustActive) {
                                             committedBpm = bpm
                                         }
                                     },
                                     onDrag = { change, _ ->
+                                        if (currentTwoFingerActive.value) {
+                                            if (!dialDragCancelled) {
+                                                tempoUnits = tempoAtDragStart
+                                                dialDragCancelled = true
+                                            }
+                                            return@detectDragGestures
+                                        }
                                         change.consume()
                                         val dragDelta = change.position - lastDragPosition
                                         lastDragPosition = change.position
