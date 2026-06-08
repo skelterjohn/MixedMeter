@@ -280,9 +280,8 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(Unit) {
                     val preferences = context.dataStore.data.first()
                     preferences[TEMPO_UNITS_KEY]?.let { savedUnits ->
-                        val loadedBpm = calculateBpm(savedUnits)
                         tempoUnits = savedUnits
-                        committedBpm = loadedBpm
+                        committedBpm = storedSequenceBpm(calculateBpm(savedUnits))
                     }
                     preferences[SELECTED_NOTE_KEY]?.let { savedNote ->
                         selectedNote = savedNote
@@ -704,7 +703,7 @@ class MainActivity : ComponentActivity() {
                             playbackAnchor = null
                             playbackPosition = 0f
                         } else {
-                            committedBpm = bpm
+                            committedBpm = storedSequenceBpm(bpm)
                             playbackPosition = 0f
                         }
                         isOn = !isOn
@@ -754,13 +753,19 @@ class MainActivity : ComponentActivity() {
                                         when {
                                             dragStartedInCircle && totalAngularDrag < 5f &&
                                                 isInCircle(lastDragPosition) -> toggleMetronome()
-                                            bpmAdjustActive -> committedBpm = bpm
+                                            bpmAdjustActive -> {
+                                                val intBpm = storedSequenceBpm(gestureBpm)
+                                                tempoUnits = bpmToTempoUnits(intBpm)
+                                                committedBpm = intBpm
+                                            }
                                         }
                                     },
                                     onDragCancel = {
                                         if (dialDragCancelled) return@detectDragGestures
                                         if (bpmAdjustActive) {
-                                            committedBpm = bpm
+                                            val intBpm = storedSequenceBpm(gestureBpm)
+                                            tempoUnits = bpmToTempoUnits(intBpm)
+                                            committedBpm = intBpm
                                         }
                                     },
                                     onDrag = { change, _ ->
@@ -985,7 +990,7 @@ class MainActivity : ComponentActivity() {
                                 modifier = Modifier.padding(bottom = 16.dp)
                             ) {
                                 Text(
-                                    text = bpm.toInt().toString(),
+                                    text = resolvedBpm(bpm).toString(),
                                     color = theme.text,
                                     fontSize = 48.sp,
                                     fontWeight = FontWeight.Bold
@@ -1060,7 +1065,7 @@ class MainActivity : ComponentActivity() {
                                         scope.launch {
                                             context.appendSequenceItem(
                                                 metronomeSnapshot(
-                                                    bpm = committedBpm,
+                                                    bpm = bpm,
                                                     selectedNote = selectedNote,
                                                     timeSignatures = timeSignatures,
                                                     beatClickModes = beatClickModes,

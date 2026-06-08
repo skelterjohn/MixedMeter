@@ -46,17 +46,21 @@ sealed class SequenceItem {
 
 fun newSequenceItemId(): String = UUID.randomUUID().toString()
 
+/** Whole-number BPM for persisted sequence items; fractional tempo only comes from percent scaling at playback. */
+fun storedSequenceBpm(bpm: Float): Float = resolvedBpm(bpm).toFloat()
+
 fun metronomeSnapshot(
     bpm: Float,
     selectedNote: String,
     timeSignatures: List<TimeSignature>,
     beatClickModes: List<List<BeatClickMode>> = emptyList(),
 ): SequenceItem {
+    val storedBpm = storedSequenceBpm(bpm)
     return if (timeSignatures.isEmpty()) {
-        SequenceItem.PlainBpm(bpm = bpm, selectedNote = selectedNote)
+        SequenceItem.PlainBpm(bpm = storedBpm, selectedNote = selectedNote)
     } else {
         SequenceItem.MeterPattern(
-            bpm = bpm,
+            bpm = storedBpm,
             selectedNote = selectedNote,
             timeSignatures = timeSignatures,
             beatClickModes = reconcileBeatClickModes(beatClickModes, timeSignatures),
@@ -269,20 +273,20 @@ private fun decodePlainBpm(parts: List<String>): SequenceItem.PlainBpm? {
     return when {
         parts.size >= 5 -> SequenceItem.PlainBpm(
             id = parts[1],
-            bpm = parts[2].toFloatOrNull() ?: return null,
+            bpm = storedSequenceBpm(parts[2].toFloatOrNull() ?: return null),
             selectedNote = parts[3],
             repeatCount = parts[4].toIntOrNull()?.coerceAtLeast(1) ?: 1,
         )
 
         parts.size >= 4 -> SequenceItem.PlainBpm(
             id = parts[1],
-            bpm = parts[2].toFloatOrNull() ?: return null,
+            bpm = storedSequenceBpm(parts[2].toFloatOrNull() ?: return null),
             selectedNote = parts[3],
         )
 
         parts.size >= 3 -> SequenceItem.PlainBpm(
             id = newSequenceItemId(),
-            bpm = parts[1].toFloatOrNull() ?: return null,
+            bpm = storedSequenceBpm(parts[1].toFloatOrNull() ?: return null),
             selectedNote = parts[2],
         )
 
@@ -337,7 +341,7 @@ private fun decodeMeterPattern(parts: List<String>): SequenceItem.MeterPattern? 
 
     return SequenceItem.MeterPattern(
         id = id,
-        bpm = bpm,
+        bpm = storedSequenceBpm(bpm),
         selectedNote = selectedNote,
         timeSignatures = timeSignatures,
         beatClickModes = beatClickModes,
