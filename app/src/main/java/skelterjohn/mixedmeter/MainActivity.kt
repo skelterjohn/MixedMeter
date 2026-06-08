@@ -87,7 +87,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -110,8 +109,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
 import skelterjohn.mixedmeter.ui.theme.MixedMeterTheme
 import kotlin.math.abs
 
@@ -373,21 +370,14 @@ class MainActivity : ComponentActivity() {
                     pendingLoopSwap?.newPlayer?.release()
                     pendingLoopSwap = null
                     loopPlayerHolder.value?.player?.stop()
+                    loopPlayerHolder.value?.player?.release()
+                    loopPlayerHolder.value = null
                     playbackAnchor = null
                     playbackPosition = 0f
                     isOn = false
                 }
 
-                val lifecycleOwner = LocalLifecycleOwner.current
-                DisposableEffect(lifecycleOwner) {
-                    val observer = LifecycleEventObserver { _, event ->
-                        if (event == Lifecycle.Event.ON_STOP) {
-                            stopMainPlayback()
-                        }
-                    }
-                    lifecycleOwner.lifecycle.addObserver(observer)
-                    onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-                }
+                PausePlaybackWhenNotFocused(onPause = ::stopMainPlayback)
 
                 val activeSchedule by remember {
                     derivedStateOf {
