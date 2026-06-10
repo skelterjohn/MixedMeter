@@ -87,6 +87,7 @@ private suspend fun LazyListState.scrollSequenceItemToCenter(
 class SequenceActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        MetronomeToneAssets.ensureLoaded(applicationContext)
         enableEdgeToEdge()
         onBackPressedDispatcher.addCallback(
             this,
@@ -201,15 +202,24 @@ private fun SequenceScreen(onBack: () -> Unit) {
     }
 
     val beatToneSetting by remember {
-        context.dataStore.data.map { preferences -> preferences[TONE_KEY] ?: DEFAULT_BEAT_TONE }
+        context.dataStore.data.map { preferences ->
+            MetronomeToneAssets.effectiveTone(preferences[TONE_KEY], DEFAULT_BEAT_TONE)
+        }
     }.collectAsState(initial = DEFAULT_BEAT_TONE)
 
     val leadToneSetting by remember {
-        context.dataStore.data.map { preferences -> preferences[LEAD_TONE_KEY] ?: DEFAULT_LEAD_TONE }
+        context.dataStore.data.map { preferences ->
+            MetronomeToneAssets.effectiveTone(preferences[LEAD_TONE_KEY], DEFAULT_LEAD_TONE)
+        }
     }.collectAsState(initial = DEFAULT_LEAD_TONE)
 
     val subdivisionToneSetting by remember {
-        context.dataStore.data.map { preferences -> preferences[SUBDIVISION_TONE_KEY] ?: DEFAULT_SUBDIVISION_TONE }
+        context.dataStore.data.map { preferences ->
+            MetronomeToneAssets.effectiveTone(
+                preferences[SUBDIVISION_TONE_KEY],
+                DEFAULT_SUBDIVISION_TONE,
+            )
+        }
     }.collectAsState(initial = DEFAULT_SUBDIVISION_TONE)
 
     val activeSegment by remember {

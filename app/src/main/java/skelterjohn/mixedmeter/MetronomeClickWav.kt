@@ -11,9 +11,10 @@ object MetronomeClickWav {
     const val SAMPLE_RATE = 22_050
 
     /** Peak level for synthesized clicks (fraction of [Short.MAX_VALUE]). */
-    private const val CLICK_PEAK = 0.92
+    const val CLICK_PEAK = 0.92
 
-    fun clickSamples(tone: String): ShortArray = generateClickSamples(tone)
+    fun clickSamples(tone: String): ShortArray =
+        MetronomeToneAssets.samplesFor(tone) ?: generateClickSamples(tone)
 
     fun cacheFile(context: Context, tone: String): File {
         val file = File(context.cacheDir, "metronome_v2_${tone.lowercase()}.wav")

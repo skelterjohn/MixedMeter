@@ -55,6 +55,7 @@ class SettingsActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        MetronomeToneAssets.ensureLoaded(applicationContext)
         enableEdgeToEdge()
         onBackPressedDispatcher.addCallback(
             this,
@@ -78,17 +79,27 @@ class SettingsActivity : ComponentActivity() {
                 DisposableEffect(Unit) {
                     onDispose { MetronomeTonePreview.stop() }
                 }
+                val toneOptions = remember { MetronomeToneAssets.toneOptions() }
                 val beatToneSetting by remember {
                     dataStore.data
-                        .map { preferences -> preferences[TONE_KEY] ?: DEFAULT_BEAT_TONE }
+                        .map { preferences ->
+                            MetronomeToneAssets.effectiveTone(preferences[TONE_KEY], DEFAULT_BEAT_TONE)
+                        }
                 }.collectAsState(initial = DEFAULT_BEAT_TONE)
                 val leadToneSetting by remember {
                     dataStore.data
-                        .map { preferences -> preferences[LEAD_TONE_KEY] ?: DEFAULT_LEAD_TONE }
+                        .map { preferences ->
+                            MetronomeToneAssets.effectiveTone(preferences[LEAD_TONE_KEY], DEFAULT_LEAD_TONE)
+                        }
                 }.collectAsState(initial = DEFAULT_LEAD_TONE)
                 val subdivisionToneSetting by remember {
                     dataStore.data
-                        .map { preferences -> preferences[SUBDIVISION_TONE_KEY] ?: DEFAULT_SUBDIVISION_TONE }
+                        .map { preferences ->
+                            MetronomeToneAssets.effectiveTone(
+                                preferences[SUBDIVISION_TONE_KEY],
+                                DEFAULT_SUBDIVISION_TONE,
+                            )
+                        }
                 }.collectAsState(initial = DEFAULT_SUBDIVISION_TONE)
 
                 Scaffold(
@@ -126,7 +137,7 @@ class SettingsActivity : ComponentActivity() {
                     ) {
                         StringSettingDropdown(
                             label = "Lead tone",
-                            options = TONE_OPTIONS,
+                            options = toneOptions,
                             selectedValue = leadToneSetting,
                             onSelect = { value ->
                                 MetronomeTonePreview.play(context, value)
@@ -137,7 +148,7 @@ class SettingsActivity : ComponentActivity() {
                         )
                         StringSettingDropdown(
                             label = "Beat tone",
-                            options = TONE_OPTIONS,
+                            options = toneOptions,
                             selectedValue = beatToneSetting,
                             onSelect = { value ->
                                 MetronomeTonePreview.play(context, value)
@@ -149,7 +160,7 @@ class SettingsActivity : ComponentActivity() {
                         )
                         StringSettingDropdown(
                             label = "Subdivision tone",
-                            options = TONE_OPTIONS,
+                            options = toneOptions,
                             selectedValue = subdivisionToneSetting,
                             onSelect = { value ->
                                 MetronomeTonePreview.play(context, value)

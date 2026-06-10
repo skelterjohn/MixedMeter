@@ -128,8 +128,6 @@ val TONE_KEY = stringPreferencesKey("tone_setting")
 val LEAD_TONE_KEY = stringPreferencesKey("lead_tone_setting")
 val SUBDIVISION_TONE_KEY = stringPreferencesKey("subdivision_tone_setting")
 val SUBDIVISION_KEY = intPreferencesKey("subdivision")
-val TONE_OPTIONS = listOf("Bop", "Bip", "Snap", "Thump")
-
 const val DEFAULT_BEAT_TONE = "Bop"
 const val DEFAULT_LEAD_TONE = "Bip"
 const val DEFAULT_SUBDIVISION_TONE = "Snap"
@@ -239,6 +237,7 @@ class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalFoundationApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        MetronomeToneAssets.ensureLoaded(applicationContext)
         @Suppress("DEPRECATION")
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
         enableEdgeToEdge()
@@ -338,17 +337,26 @@ class MainActivity : ComponentActivity() {
 
                 val beatToneSetting by remember {
                     context.dataStore.data
-                        .map { preferences -> preferences[TONE_KEY] ?: DEFAULT_BEAT_TONE }
+                        .map { preferences ->
+                            MetronomeToneAssets.effectiveTone(preferences[TONE_KEY], DEFAULT_BEAT_TONE)
+                        }
                 }.collectAsState(initial = DEFAULT_BEAT_TONE)
 
                 val leadToneSetting by remember {
                     context.dataStore.data
-                        .map { preferences -> preferences[LEAD_TONE_KEY] ?: DEFAULT_LEAD_TONE }
+                        .map { preferences ->
+                            MetronomeToneAssets.effectiveTone(preferences[LEAD_TONE_KEY], DEFAULT_LEAD_TONE)
+                        }
                 }.collectAsState(initial = DEFAULT_LEAD_TONE)
 
                 val subdivisionToneSetting by remember {
                     context.dataStore.data
-                        .map { preferences -> preferences[SUBDIVISION_TONE_KEY] ?: DEFAULT_SUBDIVISION_TONE }
+                        .map { preferences ->
+                            MetronomeToneAssets.effectiveTone(
+                                preferences[SUBDIVISION_TONE_KEY],
+                                DEFAULT_SUBDIVISION_TONE,
+                            )
+                        }
                 }.collectAsState(initial = DEFAULT_SUBDIVISION_TONE)
 
                 val selectedNoteValue by remember {
