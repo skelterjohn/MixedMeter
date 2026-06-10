@@ -33,6 +33,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,6 +42,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.unit.dp
@@ -69,8 +71,13 @@ class SettingsActivity : ComponentActivity() {
             }.collectAsState(initial = DEFAULT_THEME)
 
             MixedMeterTheme(themeName = themeSetting) {
+                val context = LocalContext.current
                 val scope = rememberCoroutineScope()
                 val theme = currentAppTheme()
+
+                DisposableEffect(Unit) {
+                    onDispose { MetronomeTonePreview.stop() }
+                }
                 val beatToneSetting by remember {
                     dataStore.data
                         .map { preferences -> preferences[TONE_KEY] ?: DEFAULT_BEAT_TONE }
@@ -122,6 +129,7 @@ class SettingsActivity : ComponentActivity() {
                             options = TONE_OPTIONS,
                             selectedValue = leadToneSetting,
                             onSelect = { value ->
+                                MetronomeTonePreview.play(context, value)
                                 scope.launch {
                                     dataStore.edit { it[LEAD_TONE_KEY] = value }
                                 }
@@ -132,6 +140,7 @@ class SettingsActivity : ComponentActivity() {
                             options = TONE_OPTIONS,
                             selectedValue = beatToneSetting,
                             onSelect = { value ->
+                                MetronomeTonePreview.play(context, value)
                                 scope.launch {
                                     dataStore.edit { it[TONE_KEY] = value }
                                 }
@@ -143,6 +152,7 @@ class SettingsActivity : ComponentActivity() {
                             options = TONE_OPTIONS,
                             selectedValue = subdivisionToneSetting,
                             onSelect = { value ->
+                                MetronomeTonePreview.play(context, value)
                                 scope.launch {
                                     dataStore.edit { it[SUBDIVISION_TONE_KEY] = value }
                                 }
