@@ -3,6 +3,7 @@ package skelterjohn.mixedmeter
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.LocalView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ProcessLifecycleOwner
@@ -34,5 +35,15 @@ fun PausePlaybackWhenNotFocused(onPause: () -> Unit) {
         }
         processOwner.lifecycle.addObserver(observer)
         onDispose { processOwner.lifecycle.removeObserver(observer) }
+    }
+}
+
+/** Keeps the screen on while [isPlaying] is true. */
+@Composable
+fun KeepScreenOnWhilePlaying(isPlaying: Boolean) {
+    val view = LocalView.current
+    DisposableEffect(isPlaying) {
+        view.keepScreenOn = isPlaying
+        onDispose { view.keepScreenOn = false }
     }
 }

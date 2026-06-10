@@ -249,6 +249,7 @@ private fun SequenceScreen(onBack: () -> Unit) {
         activeRepeatIndex = null
         sequencePosition = 0f
     }
+    KeepScreenOnWhilePlaying(isOn)
 
     fun resolveStartSegment(prerender: SequencePrerender): SequenceSegment? {
         val itemIndex = activeItemIndex.coerceIn(sequenceItems.indices)

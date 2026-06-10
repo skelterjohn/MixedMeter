@@ -381,6 +381,7 @@ class MainActivity : ComponentActivity() {
                 }
 
                 PausePlaybackWhenNotFocused(onPause = ::stopMainPlayback)
+                KeepScreenOnWhilePlaying(isOn)
 
                 val activeSchedule by remember {
                     derivedStateOf {
