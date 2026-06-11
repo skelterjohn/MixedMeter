@@ -34,6 +34,8 @@ import kotlinx.coroutines.flow.map
 import skelterjohn.mixedmeter.ui.theme.MixedMeterTheme
 
 private const val DISCORD_INVITE_URL = "https://discord.gg/E4XarYpwK"
+private const val CREATOR_EMAIL = "jasmuth@gmail.com"
+private const val CREATOR_EMAIL_SUBJECT = "About Mixed Meter Metronome..."
 
 class InformationActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
@@ -101,6 +103,19 @@ class InformationActivity : ComponentActivity() {
                                     Intent(Intent.ACTION_VIEW, Uri.parse(DISCORD_INVITE_URL)),
                                 )
                             },
+                        )
+                        Text(
+                            text = "Email the creator",
+                            color = theme.text,
+                            textDecoration = TextDecoration.Underline,
+                            modifier = Modifier
+                                .padding(top = 16.dp)
+                                .clickable {
+                                    val mailUri = Uri.parse(
+                                        "mailto:$CREATOR_EMAIL?subject=${Uri.encode(CREATOR_EMAIL_SUBJECT)}",
+                                    )
+                                    context.startActivity(Intent(Intent.ACTION_SENDTO, mailUri))
+                                },
                         )
                     }
                 }
