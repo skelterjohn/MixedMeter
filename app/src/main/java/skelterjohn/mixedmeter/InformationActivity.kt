@@ -11,8 +11,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material.icons.Icons
@@ -108,26 +110,31 @@ class InformationActivity : ComponentActivity() {
                                     context.startActivity(Intent(Intent.ACTION_SENDTO, mailUri))
                                 },
                         )
-                        Text(
-                            text = "Discord",
-                            color = theme.text,
-                            textDecoration = TextDecoration.Underline,
-                            modifier = Modifier.clickable {
-                                context.startActivity(
-                                    Intent(Intent.ACTION_VIEW, Uri.parse(DISCORD_INVITE_URL)),
-                                )
-                            },
-                        )
-                        Text(
-                            text = "GitHub",
-                            color = theme.text,
-                            textDecoration = TextDecoration.Underline,
-                            modifier = Modifier.clickable {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Text(
+                                text = "Discord",
+                                color = theme.text,
+                                textDecoration = TextDecoration.Underline,
+                                modifier = Modifier.clickable {
+                                    context.startActivity(
+                                        Intent(Intent.ACTION_VIEW, Uri.parse(DISCORD_INVITE_URL)),
+                                    )
+                                },
+                            )
+                            Text(
+                                text = "GitHub",
+                                color = theme.text,
+                                textDecoration = TextDecoration.Underline,
+                                modifier = Modifier.clickable {
                                     context.startActivity(
                                         Intent(Intent.ACTION_VIEW, Uri.parse(GITHUB_REPO_URL)),
                                     )
                                 },
-                        )
+                            )
+                        }
                     }
                 }
             }
