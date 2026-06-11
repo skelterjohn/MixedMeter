@@ -45,6 +45,7 @@ Use MixedMeter when you want to:
   - Two-finger swipe left for Information, right to go back
 
 - **Information**
+  - Brief how-to for metronome, accents, subdivisions, sequences, settings, and navigation
   - Email the creator, join Discord, or open the GitHub repo
 
 Playback stops when the app loses focus or moves to the background.
@@ -54,7 +55,7 @@ Playback stops when the app loses focus or moves to the background.
 1. Open the app to the main metronome.
 2. Set your BPM and time signature.
 3. Tap beat boxes to cycle through lead, beat, and inactive (new time signatures start with the first beat as lead).
-4. Optionally set subdivisions from the control below the BPM dial.
+4. Optionally tap the button inside the BPM dial to set subdivisions.
 5. Press play and practice.
 6. Open Sequence mode to build multi-step practice routines, or swipe up with two fingers.
 7. Save sequences you want to reuse; enable loop mode to repeat the whole sequence.

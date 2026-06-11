@@ -11,6 +11,7 @@ Do not treat this as user-facing documentation unless the user asks for that.
 - **Version bump commits:** When creating a version-bump commit, include release notes in the commit body.
 - **Commits:** Write clear commit messages (subject + short body explaining why). Only create commits when explicitly asked. On this machine, follow **Git commits (Windows)** below — do not retry failed `git commit` patterns.
 - **README maintenance:** Keep `README.md` accurate for GitHub visitors. When adding or changing user-facing behavior, update README in the same change (or immediately after) — do not leave it for a separate cleanup pass. See **README upkeep** below.
+- **Information screen upkeep:** Keep `InfoCollection()` in `InformationActivity.kt` accurate for in-app help. When adding or changing user-facing behavior, update the matching `InfoFeature` blocks in the same change (or immediately after). See **Information upkeep** below.
 - **Scope:** Prefer focused changes; match existing code style and conventions.
 - **This file:** Keep durable notes here about preferences, project layout, and code structure so future sessions stay consistent.
 - **Signed releases:** Play upload requires gitignored `keystore.properties` (see `keystore.properties.example`). **`bundleRelease`** (signed AAB + artifacts) → `app/release/`. **`assembleRelease`** builds an unsigned release APK when no keystore is present (F-Droid); signs automatically when `keystore.properties` exists. Release builds use R8 and NDK debug symbols — see **Native debug symbols** below.
@@ -73,7 +74,7 @@ All source lives in package `skelterjohn.mixedmeter`. Activities host Compose UI
 - `MainActivity.kt` — primary metronome UI: BPM dial, time signature, beat boxes, playback controls
 - `SequenceActivity.kt` — sequence editor and playback
 - `SettingsActivity.kt` — tone, theme, and app settings
-- `InformationActivity.kt` — creator email, Discord, and GitHub links
+- `InformationActivity.kt` — `InfoCollection()` in-app help (`InfoFeature` blocks + contact links)
 
 **UI building blocks**
 
@@ -126,6 +127,25 @@ Skip README updates for internal refactors, build/CI-only changes, or fixes that
 - [ ] README **Core Features** reflects the new behavior
 - [ ] README **Basic Usage** still matches how someone would try the feature
 - [ ] AGENTS **Project layout** / **Screens** updated if files or activities were added
+- [ ] `InformationActivity.kt` **`InfoCollection()`** reflects the new or changed behavior
+
+## Information upkeep
+
+`InfoCollection()` in `InformationActivity.kt` is the in-app feature guide on the Information screen. Keep it current whenever user-facing behavior changes.
+
+### When to update
+
+- New major feature or screen workflow users should know about
+- Changed controls, gestures, limits, or defaults described in an existing `InfoFeature`
+- Renamed settings, navigation paths, or UI affordances called out in the copy
+
+Skip updates for internal refactors, build-only changes, or fixes that do not change what users can do or how they do it.
+
+### What to update
+
+1. **`InfoCollection()`** — add, revise, or reorder `InfoFeature` headers and body text (bold 1–3 word header, 1–3 sentences each).
+2. **Contact links** — only when URLs or labels change (email, Discord, GitHub).
+3. **README** — keep **Core Features** / **Basic Usage** in sync when the Information copy changes (see **README upkeep**).
 
 ## Release + version bump
 
