@@ -96,16 +96,6 @@ class InformationActivity : ComponentActivity() {
                             .padding(16.dp),
                     ) {
                         Text(
-                            text = "Join the discord",
-                            color = theme.text,
-                            textDecoration = TextDecoration.Underline,
-                            modifier = Modifier.clickable {
-                                context.startActivity(
-                                    Intent(Intent.ACTION_VIEW, Uri.parse(DISCORD_INVITE_URL)),
-                                )
-                            },
-                        )
-                        Text(
                             text = "Email the creator",
                             color = theme.text,
                             textDecoration = TextDecoration.Underline,
@@ -117,6 +107,16 @@ class InformationActivity : ComponentActivity() {
                                     )
                                     context.startActivity(Intent(Intent.ACTION_SENDTO, mailUri))
                                 },
+                        )
+                        Text(
+                            text = "Discord",
+                            color = theme.text,
+                            textDecoration = TextDecoration.Underline,
+                            modifier = Modifier.clickable {
+                                context.startActivity(
+                                    Intent(Intent.ACTION_VIEW, Uri.parse(DISCORD_INVITE_URL)),
+                                )
+                            },
                         )
                         Text(
                             text = "GitHub",
