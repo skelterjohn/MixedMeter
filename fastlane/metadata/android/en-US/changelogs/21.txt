@@ -1,0 +1,1 @@
+New Information screen with in-app how-to for metronome, sequences, settings, and navigation. Email, Discord, and GitHub links on one row.

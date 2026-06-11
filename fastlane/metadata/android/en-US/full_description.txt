@@ -1,0 +1,24 @@
+MixedMeter is a focused Android metronome for musicians who want something clean and practical — no ads, no clutter.
+
+<b>Main metronome</b>
+• Set BPM with a circular dial
+• Choose time signature and note value
+• Tap beat boxes to cycle lead, beat, and inactive accents
+• Optional subdivisions (2–5 per beat) with a separate tone
+• Change accents or tones during playback without interrupting timing
+• Add the current meter to a sequence from the bottom bar
+
+<b>Sequence mode</b>
+• Build multi-step practice routines with repeats per step
+• Tempo percent scaling and optional loop mode
+• Scroll map for long sequences; tap to jump to a step
+• Save and load named sequences
+
+<b>Settings</b>
+• Separate lead, beat, and subdivision tones (built-in clicks plus WAV samples)
+• Multiple visual themes
+
+<b>Information</b>
+• In-app how-to, plus email, Discord, and GitHub links
+
+Navigate with two-finger swipes between the main screen, Sequence, Settings, and Information.

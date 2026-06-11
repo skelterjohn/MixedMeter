@@ -6,7 +6,7 @@ Do not treat this as user-facing documentation unless the user asks for that.
 
 ## How the user likes to work
 
-- **Version bumps:** When asked to bump the version, compile release notes and update `app/build.gradle.kts` (see below).
+- **Version bumps:** When asked to bump the version, compile release notes, update `app/build.gradle.kts`, and complete the F-Droid release steps in **Release + version bump** below (fastlane changelog, git tag, push/tag checklist).
 - **Release notes format:** Write release notes in a Google Play Console-friendly plain-text format (short lines/bullets, minimal markup) so they can be pasted directly.
 - **Version bump commits:** When creating a version-bump commit, include release notes in the commit body.
 - **Commits:** Write clear commit messages (subject + short body explaining why). Only create commits when explicitly asked. On this machine, follow **Git commits (Windows)** below — do not retry failed `git commit` patterns.
@@ -171,9 +171,25 @@ Applies when the user asks to "bump the version" or requests release notes.
 5. Update `app/build.gradle.kts`:
    - Increment `versionName` according to the chosen bump.
    - Increment `versionCode` by 1 for each release bump.
-6. Return:
+6. **F-Droid / fastlane** (same release as Play):
+   - Add `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt` (max 500 chars; adapt from the Play release notes).
+   - If `fdroid.md` still lists an old `versionName` / `versionCode` in the submission sketch, update those references.
+   - See [fdroid.md](fdroid.md) for the full submission checklist and metadata layout.
+7. **Git tag** (required on every version bump):
+   - After the version-bump commit exists, create an annotated tag `v<versionName>` on that commit (e.g. `v1.7.0`).
+   - Use the full git path and Windows-safe commands (see **Git commits (Windows)**). Example:
+     ```powershell
+     Set-Location "c:\Users\jasmu\AndroidStudioProjects\MixedMeter"
+     & 'C:\Program Files\Git\cmd\git.exe' tag -a v1.7.0 -F .git/TAG_MSG_TMP
+     ```
+     Write the tag message to `.git/TAG_MSG_TMP` (short summary + bullet highlights); remove the temp file after tagging.
+   - When the user asks to push the release, push the commit and the tag: `git push origin main` then `git push origin v<versionName>`.
+   - Remind them to create a **GitHub Release** from that tag (release notes can match Play / fastlane changelog) if one is not created automatically.
+   - F-Droid auto-update expects tags matching release versions (`UpdateCheckMode: Tags` in fdroid metadata).
+8. Return:
    - A concise release-note summary covering all commits since the last bump commit.
    - The old and new `versionName` and `versionCode`.
+   - Confirmation that the fastlane changelog path was added and the tag name to push (`v<versionName>`).
 
 ### Release-note style
 
@@ -186,3 +202,4 @@ Applies when the user asks to "bump the version" or requests release notes.
 - Do not bump major without explicit user instruction.
 - Do not skip commit review scope (must be "since last version bump commit").
 - Do not create a git commit unless the user explicitly asks for one.
+- Create the `v<versionName>` tag as part of the version-bump workflow (on the bump commit once it exists); do not push tags or commits unless the user explicitly asks.
