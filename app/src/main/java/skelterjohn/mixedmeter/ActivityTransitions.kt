@@ -33,6 +33,16 @@ fun Context.startSettingsActivity() {
     startActivity(intent, options.toBundle())
 }
 
+fun Context.startInformationActivity() {
+    val intent = Intent(this, InformationActivity::class.java)
+    val options = ActivityOptions.makeCustomAnimation(
+        this,
+        R.anim.slide_in_right,
+        R.anim.slide_out_left,
+    )
+    startActivity(intent, options.toBundle())
+}
+
 fun Modifier.twoFingerSwipe(
     onSwipeUp: (() -> Unit)? = null,
     onSwipeDown: (() -> Unit)? = null,

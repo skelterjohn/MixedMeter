@@ -31,6 +31,12 @@
             android:screenOrientation="portrait"
             android:theme="@style/Theme.MixedMeter" />
         <activity
+            android:name=".InformationActivity"
+            android:exported="false"
+            android:label="Information"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.MixedMeter" />
+        <activity
             android:name=".SequenceActivity"
             android:exported="false"
             android:label="Sequence"

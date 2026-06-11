@@ -128,13 +128,17 @@ class SettingsActivity : ComponentActivity() {
                         )
                     },
                 ) { innerPadding ->
-                    Column(
+                    Box(
                         modifier = Modifier
-                            .background(theme.background)
-                            .padding(innerPadding)
-                            .navigationBarBottomPadding()
-                            .padding(16.dp),
+                            .fillMaxSize()
+                            .padding(innerPadding),
                     ) {
+                        Column(
+                            modifier = Modifier
+                                .background(theme.background)
+                                .navigationBarBottomPadding()
+                                .padding(16.dp),
+                        ) {
                         StringSettingDropdown(
                             label = "Lead tone",
                             options = toneOptions,
@@ -191,6 +195,16 @@ class SettingsActivity : ComponentActivity() {
                             },
                             modifier = Modifier.padding(top = 24.dp),
                         )
+                        }
+                        BottomNavIconButton(
+                            onClick = { context.startInformationActivity() },
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .navigationBarBottomPadding()
+                                .padding(BottomNavEdgePadding),
+                        ) {
+                            InfoNavIcon()
+                        }
                     }
                 }
             }

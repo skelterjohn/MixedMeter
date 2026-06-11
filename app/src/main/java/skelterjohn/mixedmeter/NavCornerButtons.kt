@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.automirrored.filled.Help
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Checkbox
@@ -221,6 +222,17 @@ fun SettingsNavIcon(modifier: Modifier = Modifier) {
     Icon(
         imageVector = Icons.Default.Settings,
         contentDescription = "Settings",
+        tint = theme.iconTint,
+        modifier = modifier.fillMaxSize(),
+    )
+}
+
+@Composable
+fun InfoNavIcon(modifier: Modifier = Modifier) {
+    val theme = currentAppTheme()
+    Icon(
+        imageVector = Icons.AutoMirrored.Filled.Help,
+        contentDescription = "Information",
         tint = theme.iconTint,
         modifier = modifier.fillMaxSize(),
     )
