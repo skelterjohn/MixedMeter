@@ -108,6 +108,7 @@ class SettingsActivity : ComponentActivity() {
                     modifier = Modifier
                         .fillMaxSize()
                         .twoFingerSwipe(
+                            onSwipeLeft = { context.startInformationActivity() },
                             onSwipeRight = { finishWithSlideLeft() },
                         ),
                     topBar = {
