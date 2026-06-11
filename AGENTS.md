@@ -10,7 +10,7 @@ Do not treat this as user-facing documentation unless the user asks for that.
 - **Release notes format:** Write release notes in a Google Play Console-friendly plain-text format (short lines/bullets, minimal markup) so they can be pasted directly.
 - **Version bump commits:** When creating a version-bump commit, include release notes in the commit body.
 - **Commits:** Write clear commit messages (subject + short body explaining why). Only create commits when explicitly asked. On this machine, follow **Git commits (Windows)** below — do not retry failed `git commit` patterns.
-- **README maintenance:** Keep `README.md` accurate for GitHub visitors; update it whenever a new user-facing feature is added.
+- **README maintenance:** Keep `README.md` accurate for GitHub visitors. When adding or changing user-facing behavior, update README in the same change (or immediately after) — do not leave it for a separate cleanup pass. See **README upkeep** below.
 - **Scope:** Prefer focused changes; match existing code style and conventions.
 - **This file:** Keep durable notes here about preferences, project layout, and code structure so future sessions stay consistent.
 - **Signed releases:** Play upload requires gitignored `keystore.properties` (see `keystore.properties.example`). **`bundleRelease`** (signed AAB + artifacts) → `app/release/`. **`assembleRelease`** builds an unsigned release APK when no keystore is present (F-Droid); signs automatically when `keystore.properties` exists. Release builds use R8 and NDK debug symbols — see **Native debug symbols** below.
@@ -55,7 +55,7 @@ Standard single-module Android app.
 | Path | Purpose |
 |------|---------|
 | `app/build.gradle.kts` | App config, `versionCode`, `versionName` |
-| `app/src/main/AndroidManifest.xml` | Three activities: `MainActivity`, `SettingsActivity`, `SequenceActivity` |
+| `app/src/main/AndroidManifest.xml` | Four activities: `MainActivity`, `SettingsActivity`, `InformationActivity`, `SequenceActivity` |
 | `app/src/main/java/skelterjohn/mixedmeter/` | All app Kotlin source (flat package, file-per-concern) |
 | `app/src/main/java/skelterjohn/mixedmeter/ui/theme/` | Compose Material theme scaffolding (`Color`, `Type`, `Theme`) |
 | `app/src/main/res/` | Drawables, mipmaps, animations, strings, XML themes |
@@ -73,6 +73,7 @@ All source lives in package `skelterjohn.mixedmeter`. Activities host Compose UI
 - `MainActivity.kt` — primary metronome UI: BPM dial, time signature, beat boxes, playback controls
 - `SequenceActivity.kt` — sequence editor and playback
 - `SettingsActivity.kt` — tone, theme, and app settings
+- `InformationActivity.kt` — creator email, Discord, and GitHub links
 
 **UI building blocks**
 
@@ -99,6 +100,32 @@ All source lives in package `skelterjohn.mixedmeter`. Activities host Compose UI
 - `SequenceStore.kt` — DataStore persistence, flows for items/names/saved sequences
 - `SequenceMap.kt` — map UI for sequence items
 - `SequencePrerender.kt` — prerender sequence segments for loop playback
+
+## README upkeep
+
+`README.md` is the public feature list for GitHub visitors. Keep it current whenever user-facing behavior changes.
+
+### When to update
+
+- New screen, navigation path, or gesture
+- New or renamed setting, tone, theme, or playback option
+- Changed defaults or workflows described in **Basic Usage**
+- License or distribution notes that visitors should see
+
+Skip README updates for internal refactors, build/CI-only changes, or fixes that do not change what users can do.
+
+### What to update
+
+1. **Core Features** — add or revise bullets for the affected screen(s).
+2. **Basic Usage** — adjust numbered steps when the default workflow changes.
+3. **Tech Notes** — only when stack or persistence behavior changes in a visitor-relevant way.
+4. **This file** — if project layout or activities change (manifest table, **Screens** list).
+
+### Checklist (use when shipping a user-facing feature)
+
+- [ ] README **Core Features** reflects the new behavior
+- [ ] README **Basic Usage** still matches how someone would try the feature
+- [ ] AGENTS **Project layout** / **Screens** updated if files or activities were added
 
 ## Release + version bump
 
