@@ -1,12 +1,15 @@
 package skelterjohn.mixedmeter
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -24,8 +27,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.map
 import skelterjohn.mixedmeter.ui.theme.MixedMeterTheme
+
+private const val DISCORD_INVITE_URL = "https://discord.gg/E4XarYpwK"
 
 class InformationActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
@@ -47,6 +55,7 @@ class InformationActivity : ComponentActivity() {
             }.collectAsState(initial = DEFAULT_THEME)
 
             MixedMeterTheme(themeName = themeSetting) {
+                val context = LocalContext.current
                 val theme = currentAppTheme()
 
                 Scaffold(
@@ -75,13 +84,25 @@ class InformationActivity : ComponentActivity() {
                         )
                     },
                 ) { innerPadding ->
-                    Box(
+                    Column(
                         modifier = Modifier
                             .background(theme.background)
                             .padding(innerPadding)
                             .navigationBarBottomPadding()
-                            .fillMaxSize(),
-                    )
+                            .fillMaxSize()
+                            .padding(16.dp),
+                    ) {
+                        Text(
+                            text = "Join the discord",
+                            color = theme.text,
+                            textDecoration = TextDecoration.Underline,
+                            modifier = Modifier.clickable {
+                                context.startActivity(
+                                    Intent(Intent.ACTION_VIEW, Uri.parse(DISCORD_INVITE_URL)),
+                                )
+                            },
+                        )
+                    }
                 }
             }
         }
