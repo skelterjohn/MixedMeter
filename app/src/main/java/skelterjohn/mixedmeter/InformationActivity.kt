@@ -9,6 +9,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -94,14 +95,13 @@ class InformationActivity : ComponentActivity() {
                             .navigationBarBottomPadding()
                             .fillMaxSize()
                             .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
                         Text(
                             text = "Email the creator",
                             color = theme.text,
                             textDecoration = TextDecoration.Underline,
-                            modifier = Modifier
-                                .padding(top = 16.dp)
-                                .clickable {
+                            modifier = Modifier.clickable {
                                     val mailUri = Uri.parse(
                                         "mailto:$CREATOR_EMAIL?subject=${Uri.encode(CREATOR_EMAIL_SUBJECT)}",
                                     )
@@ -122,9 +122,7 @@ class InformationActivity : ComponentActivity() {
                             text = "GitHub",
                             color = theme.text,
                             textDecoration = TextDecoration.Underline,
-                            modifier = Modifier
-                                .padding(top = 16.dp)
-                                .clickable {
+                            modifier = Modifier.clickable {
                                     context.startActivity(
                                         Intent(Intent.ACTION_VIEW, Uri.parse(GITHUB_REPO_URL)),
                                     )
